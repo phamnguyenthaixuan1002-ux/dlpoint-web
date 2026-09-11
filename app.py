@@ -10,6 +10,7 @@ import os
 import calendar
 import io # <<< THÊM THƯ VIỆN NÀY (Để xử lý file Excel mẫu tải về)
 import base64 # <<< THÊM THƯ VIỆN NÀY ĐỂ XỬ LÝ ẢNH TRÊN WEB
+import zipfile  # <<< THÊM DÒNG NÀY
 from database import (
     init_db, verify_user, lay_danh_sach_hoc_sinh_db,
     lay_tat_ca_danh_muc_su_kien_db, lay_chi_tiet_danh_muc_su_kien_db,
@@ -27,6 +28,8 @@ from database import (
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem, get_school_week_number, HOLIDAY_SETTINGS_KEY # <<< THÊM 2 HÀM/BIẾN CUỐI
+# Thêm hàm tạo PDF từ file cũ
+from pdf_report import generate_pdf_report  # <<< THÊM DÒNG NÀY
 
 
 # --- CẤU HÌNH TRANG WEB ---
@@ -427,8 +430,8 @@ def show_summary_page():
     
     user = st.session_state.user_info
     
-    # Tạo 2 tab trên giao diện Web
-    tab_tuan, tab_thang = st.tabs(["📅 Tổng kết Tuần", "🗓️ Tổng kết Tháng"])
+  # Tạo 3 tab trên giao diện Web (THÊM TAB PDF)
+    tab_tuan, tab_thang, tab_pdf = st.tabs(["📅 Tổng kết Tuần", "🗓️ Tổng kết Tháng", "🖨️ Xuất Phiếu PDF"])
     
     # ==========================================
     # TAB 1: TỔNG KẾT TUẦN
@@ -578,6 +581,91 @@ def show_summary_page():
             else:
                 st.error(f"Lỗi tạo Excel: {msg_m}")
             os.unlink(filepath_m)
+ # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (TÍNH NĂNG MỚI)
+    # ==========================================
+    with tab_pdf:
+        st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
+        
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month")
+        with col_p2:
+            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year")
+            
+        st.markdown("---")
+        export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"])
+        
+        # Lấy danh sách HS để chọn
+        all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
+        student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
+        
+        selected_student_ids = []
+        if export_scope == "Chọn học sinh cụ thể":
+            selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()))
+            selected_student_ids = [student_dict[name] for name in selected_names]
+        else:
+            selected_student_ids = [hs[0] for hs in all_students]
+            st.info(f"Sẽ xuất phiếu cho toàn bộ {len(selected_student_ids)} học sinh.")
+            
+        if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch"):
+            if not selected_student_ids:
+                st.warning("Vui lòng chọn ít nhất một học sinh.")
+            else:
+                with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
+                    # Tạo thư mục tạm trên server để lưu PDF
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        pdf_files = []
+                        success_count, fail_count = 0, 0
+                        
+                        # Duyệt qua từng HS để tạo PDF
+                        for hs in all_students:
+                            if hs[0] in selected_student_ids:
+                                # Làm sạch tên file để tránh lỗi tiếng Việt có dấu
+                                safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
+                                filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
+                                filepath = os.path.join(tmpdirname, filename)
+                                
+                                # Gọi hàm tạo PDF từ code cũ
+                                success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
+                                if success:
+                                    pdf_files.append((filename, filepath))
+                                    success_count += 1
+                                else:
+                                    fail_count += 1
+                                    
+                        # Xử lý sau khi tạo xong
+                        if success_count > 0:
+                            st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
+                            
+                            # Nếu chỉ xuất 1 người, cho tải thẳng file PDF
+                            if len(pdf_files) == 1:
+                                with open(pdf_files[0][1], "rb") as f:
+                                    pdf_data = f.read()
+                                st.download_button(
+                                    label=f"📥 Tải xuống Phiếu: {pdf_files[0][0]}",
+                                    data=pdf_data,
+                                    file_name=pdf_files[0][0],
+                                    mime="application/pdf",
+                                    type="primary",
+                                    width="stretch"
+                                )
+                            # Nếu xuất nhiều người, Nén Zip lại cho tiện
+                            else:
+                                zip_buffer = io.BytesIO()
+                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                                    for fname, fpath in pdf_files:
+                                        zip_file.write(fpath, arcname=fname)
+                                
+                                st.download_button(
+                                    label=f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip",
+                                    mime="application/zip",
+                                    type="primary",
+                                    width="stretch"
+                                )
+                        else:
+                            st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
 # --- HÀM 7: QUẢN TRỊ HỆ THỐNG (ADMIN) ---
 def show_admin_page():
     st.header("⚙️ Quản trị Hệ thống")
