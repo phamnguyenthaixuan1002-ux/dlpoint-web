@@ -6,3 +6,4 @@ openpyxl
 fpdf2
 matplotlib
 Pillow
+streamlit-option-menu
