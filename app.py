@@ -9,7 +9,7 @@ import tempfile
 import os
 import calendar
 import io # <<< THÊM THƯ VIỆN NÀY (Để xử lý file Excel mẫu tải về)
-
+import base64 # <<< THÊM THƯ VIỆN NÀY ĐỂ XỬ LÝ ẢNH TRÊN WEB
 from database import (
     init_db, verify_user, lay_danh_sach_hoc_sinh_db,
     lay_tat_ca_danh_muc_su_kien_db, lay_chi_tiet_danh_muc_su_kien_db,
@@ -21,7 +21,8 @@ from database import (
     them_hoac_cap_nhat_danh_muc_db, load_setting, save_setting,
     get_distinct_classes_and_groups_db,
     them_hoc_sinh_db, xoa_nhieu_hoc_sinh_db,
-    them_su_kien_ren_luyen_db # <<< ĐÃ BỔ SUNG HÀM BỊ THIẾU Ở ĐÂY
+    them_su_kien_ren_luyen_db,
+    cap_nhat_anh_the_db # <<< THÊM HÀM NÀY
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
@@ -66,6 +67,7 @@ def show_login_page():
 # --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
 # --- HÀM 3: QUẢN LÝ LỚP HỌC ---
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
+# --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
 def show_class_management():
     st.header("👨‍🎓 Quản lý Lớp học & Hồ sơ 360°")
     st.markdown("---")
@@ -77,42 +79,63 @@ def show_class_management():
         st.info("Chưa có dữ liệu học sinh nào trong phạm vi quản lý của thầy/cô.")
         return
 
-    # 1. THU GỌN BẢNG DANH SÁCH LỚP VÀO MỘT KHUNG CÓ THỂ ĐÓNG/MỞ (EXPANDER)
     with st.expander("📋 Click để xem danh sách tổng quát của lớp", expanded=False):
         df = pd.DataFrame(raw_data, columns=["ID", "Họ và Tên", "Lớp", "Tổ", "SĐT Học sinh", "SĐT Zalo", "Ảnh thẻ"])
         df.insert(0, 'STT', range(1, 1 + len(df)))
         st.dataframe(df[['STT', 'Họ và Tên', 'Lớp', 'Tổ', 'SĐT Học sinh', "SĐT Zalo"]], width="stretch", hide_index=True)
 
-    # 2. KHU VỰC HỒ SƠ 360 ĐỘ
     st.subheader("🔍 Tra cứu Hồ sơ 360°")
     
-    # Tạo danh sách chọn học sinh
     student_dict = {f"{hs[1]} (Lớp {hs[2]})": hs[0] for hs in raw_data}
     selected_student_name = st.selectbox("Chọn học sinh để xem hồ sơ chi tiết:", options=["-- Hãy chọn một học sinh --"] + list(student_dict.keys()))
 
     if selected_student_name != "-- Hãy chọn một học sinh --":
         hs_id = student_dict[selected_student_name]
         
-        # Lấy thông tin chi tiết từ CSDL
         student_info_tuple = lay_thong_tin_day_du_hoc_sinh_db(student_id=hs_id)
-        if not student_info_tuple:
-            st.error("Lỗi: Không tìm thấy thông tin chi tiết.")
-            return
+        if not student_info_tuple: return
             
-        # Ghép tên cột với dữ liệu
         info = dict(zip(["id"] + STUDENT_FIELDS_DB, student_info_tuple))
 
-        # --- TẠO 3 TAB HIỂN THỊ ---
-        tab_tong_quan, tab_lich_su, tab_muc_tieu = st.tabs([
-            "📝 Tổng quan & Biểu đồ", 
-            "📜 Lịch sử Rèn luyện & Kỷ luật", 
-            "🎯 Mục tiêu & Phản hồi GVCN"
-        ])
+        tab_tong_quan, tab_lich_su, tab_muc_tieu = st.tabs(["📝 Tổng quan & Biểu đồ", "📜 Lịch sử Rèn luyện", "🎯 Mục tiêu & Phản hồi"])
 
-        # === TAB 1: TỔNG QUAN ===
+        # === TAB 1: TỔNG QUAN CÓ UPLOAD ẢNH THẺ ===
         with tab_tong_quan:
-            col_info, col_chart = st.columns([1, 1.5], gap="large")
+            col_img, col_info, col_chart = st.columns([1, 1.5, 2], gap="medium")
             
+            # --- CỘT 1: ẢNH THẺ ---
+            with col_img:
+                if not os.path.exists('student_photos'):
+                    os.makedirs('student_photos')
+                    
+                anh_path = info.get('anh_the_path')
+                full_img_path = os.path.join('student_photos', anh_path) if anh_path else ""
+                
+                # Hiển thị ảnh hiện tại
+                if anh_path and os.path.exists(full_img_path):
+                    st.image(full_img_path, width=150)
+                else:
+                    # Ảnh mặc định nếu chưa có
+                    st.image("https://cdn-icons-png.flaticon.com/512/149/149071.png", width=150)
+                
+                # Tính năng Upload ảnh
+                uploaded_file = st.file_uploader("Cập nhật ảnh (JPG/PNG)", type=['jpg', 'jpeg', 'png'], key=f"up_{hs_id}")
+                if uploaded_file is not None:
+                    if st.button("💾 Lưu ảnh", type="primary", key=f"btn_{hs_id}", width="stretch"):
+                        ext = uploaded_file.name.split('.')[-1]
+                        new_filename = f"hs_{hs_id}.{ext}"
+                        filepath = os.path.join('student_photos', new_filename)
+                        
+                        # Ghi file ảnh vào hệ thống
+                        with open(filepath, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        
+                        # Lưu tên file vào CSDL
+                        if cap_nhat_anh_the_db(hs_id, new_filename):
+                            st.toast("Đã cập nhật ảnh thành công!", icon="✅")
+                            st.rerun() # Tải lại trang để hiện ảnh mới
+            
+            # --- CỘT 2: THÔNG TIN ---
             with col_info:
                 st.markdown(f"### {info.get('ten', 'Chưa cập nhật')}")
                 st.write(f"**Lớp:** {info.get('lop', '')} | **Tổ:** {info.get('to_nhiem_vu', '')}")
@@ -121,21 +144,19 @@ def show_class_management():
                 st.write(f"**Phụ huynh:** {info.get('ten_cha', '')} / {info.get('ten_me', '')}")
                 st.write(f"**SĐT Phụ huynh:** {info.get('sdt_cha', '')} / {info.get('sdt_me', '')}")
                 
+            # --- CỘT 3: BIỂU ĐỒ ---
             with col_chart:
-                st.write("**📈 Xu hướng rèn luyện (4 tuần gần nhất)**")
+                st.write("**📈 Xu hướng rèn luyện (4 tuần)**")
                 chart_data = lay_du_lieu_bieu_do_ca_nhan(hs_id, num_weeks=4)
                 if chart_data:
-                    # Chuyển đổi dữ liệu sang định dạng Streamlit hiểu để vẽ
                     weeks = [f"Tuần {int(d[0])}" for d in chart_data]
                     scores = [DIEM_KHOI_DAU + d[1] for d in chart_data]
-                    
                     df_chart = pd.DataFrame({"Tổng điểm": scores}, index=weeks)
-                    # Vẽ biểu đồ Line cực nhanh của Streamlit
                     st.line_chart(df_chart, color="#0078D7")
                 else:
-                    st.info("Học sinh chưa có dữ liệu rèn luyện trong 4 tuần qua để vẽ biểu đồ.")
+                    st.info("Chưa có dữ liệu rèn luyện.")
 
-        # === TAB 2: LỊCH SỬ RÈN LUYỆN ===
+        # === TAB LỊCH SỬ VÀ TAB MỤC TIÊU GIỮ NGUYÊN ===
         with tab_lich_su:
             st.write("**Lịch sử Kỷ luật (Theo TT19)**")
             history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
@@ -146,33 +167,23 @@ def show_class_management():
                 st.success("Học sinh chưa bị áp dụng hình thức kỷ luật nào.")
             
             st.write("**Chi tiết các Sự kiện Rèn luyện (+/- điểm)**")
-            # Tái sử dụng hàm lay_su_kien_trong_khoang_ngay_db với mốc thời gian rộng
             all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
             hs_events = [e for e in all_events if e[0] == hs_id]
-            
             if hs_events:
-                # Cấu trúc tuple: (hs_id, ten, lop, to, mo_ta, loai_su_kien, diem, ngay_tao)
                 df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày ghi nhận"])
                 st.dataframe(df_events[["Ngày ghi nhận", "Nội dung", "Loại", "Điểm"]].sort_values("Ngày ghi nhận", ascending=False), width="stretch", hide_index=True)
             else:
                 st.info("Chưa có sự kiện rèn luyện nào được ghi nhận.")
 
-        # === TAB 3: MỤC TIÊU & PHẢN HỒI ===
         with tab_muc_tieu:
             st.write("Giáo viên Chủ nhiệm có thể ghi chú mục tiêu phấn đấu và nhận xét cá nhân tại đây:")
-            
-            # Khởi tạo giá trị trong session_state để quản lý Form
             muc_tieu_cu = info.get('muc_tieu_thang') or ""
             phan_hoi_cu = info.get('phan_hoi_gvcn') or ""
-            
             new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=100)
             new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=phan_hoi_cu, height=150)
-            
             if st.button("💾 Lưu Mục tiêu & Phản hồi", type="primary"):
                 if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
                     st.toast("Đã lưu mục tiêu và phản hồi thành công!", icon="✅")
-                else:
-                    st.error("Có lỗi xảy ra khi lưu vào CSDL.")
 # --- HÀM 8: GHI NHẬN NHANH (TỐI ƯU CHO BCS & GVCN) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
@@ -933,6 +944,9 @@ def show_main_dashboard():
 
 # --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN ---
 def create_certificate_image(student_name, class_name, achievement_text):
+    from PIL import Image, ImageDraw, ImageFont
+    import io
+    
     # Tạo một bức ảnh nền màu vàng nhạt sang trọng
     img = Image.new('RGB', (800, 600), color='#FDF5E6')
     draw = ImageDraw.Draw(img)
@@ -941,21 +955,20 @@ def create_certificate_image(student_name, class_name, achievement_text):
     draw.rectangle([20, 20, 780, 580], outline='#DAA520', width=12)
     draw.rectangle([35, 35, 765, 565], outline='#DAA520', width=3)
 
-    # Tải Font chữ (Dùng luôn thư mục fonts thầy đã có để xuất PDF)
+    # Tải Font chữ (Dự phòng lỗi nếu máy chủ mất font)
     try:
         font_title = ImageFont.truetype("fonts/timesbd.ttf", 55)
         font_subtitle = ImageFont.truetype("fonts/times.ttf", 30)
         font_name = ImageFont.truetype("fonts/timesbd.ttf", 65)
     except:
-        # Dự phòng nếu máy chủ không tìm thấy thư mục fonts
         font_title = font_subtitle = font_name = ImageFont.load_default()
 
-    # Viết chữ lên Bằng khen (Căn giữa)
+    # Viết chữ lên Bằng khen
     draw.text((400, 100), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
     draw.text((400, 200), "Tuyên dương học sinh:", fill="#333333", font=font_subtitle, anchor="mt")
-    draw.text((400, 280), student_name.upper(), fill="#000080", font=font_name, anchor="mt")
+    draw.text((400, 280), str(student_name).upper(), fill="#000080", font=font_name, anchor="mt")
     draw.text((400, 380), f"Học sinh lớp: {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
-    draw.text((400, 450), achievement_text, fill="#D2691E", font=font_subtitle, anchor="mt")
+    draw.text((400, 450), str(achievement_text), fill="#D2691E", font=font_subtitle, anchor="mt")
 
     # Xuất ra định dạng Byte để Web tải về
     buf = io.BytesIO()
@@ -963,15 +976,21 @@ def create_certificate_image(student_name, class_name, achievement_text):
     return buf.getvalue()
 
 
-# --- HÀM 8: BẢNG VÀNG THI ĐUA ---
+# --- HÀM 8: BẢNG VÀNG THI ĐUA ĐƯỢC NÂNG CẤP CÓ ẢNH ---
 def show_leaderboard_page():
+    import streamlit as st
+    import pandas as pd
+    import json
+    import os
+    import base64 # Khai báo trực tiếp trong hàm để chống lỗi
+    from datetime import date, datetime, timedelta
+    
     st.header("🏆 Bảng Vàng Thi Đua & Vinh Danh")
     st.markdown("---")
 
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
 
-    # --- Lấy dữ liệu Tuần hiện tại (Giống hàm Dashboard) ---
     today = date.today()
     try:
         start_date_str = load_setting('school_year_start_date', '2025-09-08')
@@ -979,14 +998,13 @@ def show_leaderboard_page():
         h_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in h_json]
         current_week = get_school_week_number(today, datetime.strptime(start_date_str, '%Y-%m-%d').date(), h_in_year)
         if current_week <= 0: current_week = 1
-    except:
-        current_week = 1
+    except: current_week = 1
         
     start_w, end_w = get_week_dates_by_number(current_week)
-    if not start_w:
-        start_w, end_w = today - timedelta(days=today.weekday()), today + timedelta(days=6-today.weekday())
+    if not start_w: 
+        start_w = today - timedelta(days=today.weekday())
+        end_w = today + timedelta(days=6-today.weekday())
 
-    # --- Tính điểm cho tuần này ---
     all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
     all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=role, assigned_class=aclass, assigned_group=agroup)
     
@@ -995,54 +1013,68 @@ def show_leaderboard_page():
         events_by_student.setdefault(ev[0], []).append(ev)
         
     student_list = []
-    for hs in all_students:
-        score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs[0], []))
-        student_list.append({'id': hs[0], 'ten': hs[1], 'lop': hs[2], 'to': hs[3] or "Không rõ", 'diem': score})
+    for hs_tuple in all_students:
+        try:
+            hs = dict(zip(["id"] + STUDENT_FIELDS_DB, hs_tuple))
+            score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs['id'], []))
+            student_list.append({
+                'id': hs['id'], 'ten': hs['ten'], 'lop': hs['lop'], 'to': hs.get('to_nhiem_vu', '') or "Không rõ", 
+                'diem': score, 'anh_the': hs.get('anh_the_path', '')
+            })
+        except Exception as e:
+            continue
     
-    # Sắp xếp từ cao xuống thấp
     student_list.sort(key=lambda x: x['diem'], reverse=True)
 
     if not student_list:
         st.info("Chưa có dữ liệu học sinh để xếp hạng.")
         return
 
-    # === GIAO DIỆN BỤC VINH QUANG TOP 3 ===
     st.subheader(f"🌟 TOP 3 HỌC SINH XUẤT SẮC NHẤT TUẦN {current_week}")
     
     top3 = student_list[:3]
-    # Sắp xếp cột: Á quân (Trái) - Quán quân (Giữa to) - Quý quân (Phải)
     col2, col1, col3 = st.columns([1, 1.2, 1], gap="medium")
     
-    # Hàm hiển thị Card học sinh
+    # Hàm con mã hóa ảnh an toàn chống lỗi
+    def get_image_base64(path):
+        if path and isinstance(path, str) and os.path.exists(os.path.join('student_photos', path)):
+            try:
+                with open(os.path.join('student_photos', path), "rb") as img_file:
+                    encoded = base64.b64encode(img_file.read()).decode()
+                    return f"data:image/jpeg;base64,{encoded}"
+            except: pass
+        return "https://cdn-icons-png.flaticon.com/512/149/149071.png" # Ảnh mặc định
+
     def draw_podium(col, hs, rank, icon, color):
+        img_b64 = get_image_base64(hs['anh_the'])
         with col:
             st.markdown(f"""
             <div style='background-color: {color}; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); height: 100%;'>
                 <h1 style='margin:0;'>{icon}</h1>
-                <h3 style='margin:10px 0 5px 0; color: #333;'>{hs['ten']}</h3>
+                <img src="{img_b64}" style="width: 140px; height: 140px; object-fit: cover; border-radius: 50%; border: 4px solid #DAA520; margin: 10px 0; box-shadow: 0px 4px 8px rgba(0,0,0,0.2);">
+                <h3 style='margin:5px 0 5px 0; color: #333;'>{hs['ten']}</h3>
                 <p style='margin:0; font-size:18px; font-weight:bold; color: #d63031;'>{hs['diem']} điểm</p>
                 <p style='margin:0; color: #636e72;'>Lớp: {hs['lop']} | Tổ: {hs['to']}</p>
             </div>
             """, unsafe_allow_html=True)
             
-            # Tạo Nút Tải Bằng khen
-            cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}")
-            st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", use_container_width=True)
+            try:
+                cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}")
+                st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", width="stretch", key=f"btn_cert_{hs['id']}")
+            except Exception as e:
+                st.error("Lỗi tạo bằng khen")
 
     if len(top3) > 0: 
-        draw_podium(col1, top3[0], 1, "🥇", "#FFF9E6") # Top 1
-        st.balloons() # Hiệu ứng bóng bay chúc mừng khi vào trang!
-    if len(top3) > 1: draw_podium(col2, top3[1], 2, "🥈", "#F2F2F2") # Top 2
-    if len(top3) > 2: draw_podium(col3, top3[2], 3, "🥉", "#FFF0E6") # Top 3
+        draw_podium(col1, top3[0], 1, "🥇", "#FFF9E6") 
+        st.balloons() 
+    if len(top3) > 1: draw_podium(col2, top3[1], 2, "🥈", "#F2F2F2")
+    if len(top3) > 2: draw_podium(col3, top3[2], 3, "🥉", "#FFF0E6")
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
-    # === BẢNG XẾP HẠNG TỔ (GROUP RANKING) ===
     col_t_left, col_t_right = st.columns([1, 1])
-    
     with col_t_left:
         st.subheader("👥 Bảng Xếp Hạng Tổ (Tuần này)")
-        # Tính điểm trung bình của Tổ
         df_hs = pd.DataFrame(student_list)
         if not df_hs.empty:
             team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
