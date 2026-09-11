@@ -30,7 +30,7 @@ from excel_export import generate_weekly_summary_excel, generate_monthly_summary
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem, get_school_week_number, HOLIDAY_SETTINGS_KEY # <<< THÊM 2 HÀM/BIẾN CUỐI
 # Thêm hàm tạo PDF từ file cũ
 from pdf_report import generate_pdf_report  # <<< THÊM DÒNG NÀY
-
+from streamlit_option_menu import option_menu # Thư viện tạo Menu bo góc
 
 # --- CẤU HÌNH TRANG WEB ---
 # Lệnh này phải đặt ở đầu tiên
@@ -985,51 +985,60 @@ def show_attendance_page():
         else:
             st.success("✅ Đã lưu điểm danh! Hôm nay 100% học sinh có mặt đầy đủ.")
 # --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
+# --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
 def show_main_dashboard():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
     
-    # --- THANH BÊN (SIDEBAR) VÀ PHÂN QUYỀN MENU ---
-    st.sidebar.title(f"Chào, {user['full_name']} 👋")
-    st.sidebar.caption(f"Vai trò: {role.upper()} | Lớp: {aclass or 'Toàn trường'}")
-    st.sidebar.markdown("---")
-    
-    # 1. Menu cơ bản ai cũng thấy (BCS, GVCN, Admin)
-    menu_options = [
-        "🏠 Bảng điều khiển", 
-        "🏆 Bảng Vàng Thi Đua", 
-        "👨‍🎓 Quản lý Lớp học", 
-        "📅 Điểm danh hàng ngày", # <<< THÊM MENU NÀY
-        "📝 Ghi nhận Nhanh"
-    ]
-    
-    # 2. Menu chỉ dành cho GVCN và Admin (BCS không thấy)
-    if role in ['gvcn', 'admin']:
-        menu_options.extend([
-            "⚖️ Ghi nhận Kỷ luật (TT19)", 
-            "📊 Thống kê & Báo cáo", 
-            "📑 Tổng kết & Xuất Excel"
-        ])
+    # --- THANH BÊN (SIDEBAR) HIỆN ĐẠI ---
+    with st.sidebar:
+        st.title(f"Chào, {user['full_name']} 👋")
+        st.caption(f"Vai trò: {role.upper()} | Lớp: {aclass or 'Toàn trường'}")
+        st.markdown("---")
         
-    # 3. Menu chỉ dành cho Admin
-    if role == 'admin':
-        menu_options.append("⚙️ Quản trị Hệ thống")
+        # 1. Thiết lập danh sách Menu và Icon (Sử dụng Bootstrap Icons)
+        options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quản lý Lớp học", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
+        icons = ["house", "trophy", "people", "calendar2-check", "lightning-charge"]
+        
+        if role in ['gvcn', 'admin']:
+            options.extend(["Ghi nhận Kỷ luật (TT19)", "Thống kê & Báo cáo", "Tổng kết & Xuất Excel"])
+            icons.extend(["shield-exclamation", "bar-chart-steps", "file-earmark-spreadsheet"])
+            
+        if role == 'admin':
+            options.append("Quản trị Hệ thống")
+            icons.append("gear")
 
-    choice = st.sidebar.radio("Chọn chức năng:", menu_options)
-    
-    st.sidebar.markdown("---")
-    if st.sidebar.button("Đăng xuất", width="stretch"):
-        st.session_state.logged_in = False
-        st.session_state.user_info = None
-        st.rerun()
+        # 2. Vẽ Menu với Style hiện đại (Theme Ocean Blue)
+        choice = option_menu(
+            menu_title=None,  # Ẩn tiêu đề chữ Menu
+            options=options,
+            icons=icons,
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important", "background-color": "transparent"},
+                "icon": {"font-size": "18px"}, 
+                "nav-link": {
+                    "font-size": "15px", "text-align": "left", "margin":"4px 0", 
+                    "border-radius": "8px", "--hover-color": "#e6f2ff"
+                },
+                "nav-link-selected": {"background-color": "#0056b3", "color": "white"},
+            }
+        )
+        
+        st.markdown("---")
+        if st.button("Đăng xuất", type="secondary", width="stretch"):
+            st.session_state.logged_in = False
+            st.session_state.user_info = None
+            st.rerun()
 
-    # --- KHU VỰC NỘI DUNG CHÍNH ---
-    if choice == "🏠 Bảng điều khiển":
+    # --- KHU VỰC NỘI DUNG CHÍNH (ĐIỀU HƯỚNG THEO LỰA CHỌN) ---
+    if choice == "Bảng điều khiển":
         st.header("📊 Bảng điều khiển Tổng quan")
         st.markdown("---")
 
         # ==========================================
-        # 1. TÍNH TOÁN DỮ LIỆU THỰC TẾ
+        # TÍNH TOÁN DỮ LIỆU THỰC TẾ
         # ==========================================
         hs_list = lay_danh_sach_hoc_sinh_db(role, aclass, agroup)
         total_hs = len(hs_list) if hs_list else 0
@@ -1037,19 +1046,16 @@ def show_main_dashboard():
         today = date.today()
         try:
             start_date_str = load_setting('school_year_start_date', '2025-09-08')
-            holidays_json = load_setting(HOLIDAY_SETTINGS_KEY, '[]')
-            school_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            holidays_raw = json.loads(holidays_json)
-            holidays_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in holidays_raw]
-            current_week = get_school_week_number(today, school_start_date, holidays_in_year)
+            h_json = json.loads(load_setting(HOLIDAY_SETTINGS_KEY, '[]'))
+            h_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in h_json]
+            current_week = get_school_week_number(today, datetime.strptime(start_date_str, '%Y-%m-%d').date(), h_in_year)
             if current_week <= 0: current_week = 1
         except:
             current_week = 1
             
         start_w, end_w = get_week_dates_by_number(current_week)
-        if not start_w: # Dự phòng nếu lỗi
-            start_w = today - timedelta(days=today.weekday())
-            end_w = start_w + timedelta(days=6)
+        if not start_w: 
+            start_w, end_w = today - timedelta(days=today.weekday()), today + timedelta(days=6-today.weekday())
 
         events_week = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
         
@@ -1057,7 +1063,7 @@ def show_main_dashboard():
         vi_pham_count = sum(1 for ev in events_week if ev[5] == "Vi phạm")
 
         # ==========================================
-        # 2. HIỂN THỊ GIAO DIỆN (UI)
+        # HIỂN THỊ GIAO DIỆN (UI)
         # ==========================================
         st.markdown(f"##### 📅 Thông số Tuần {current_week} (Từ {start_w.strftime('%d/%m')} đến {end_w.strftime('%d/%m')})")
         
@@ -1068,7 +1074,6 @@ def show_main_dashboard():
         col4.metric("Vi phạm", vi_pham_count, "Cần lưu ý", delta_color="inverse")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
         col_chart, col_feed = st.columns([1.5, 1], gap="large")
         
         with col_chart:
@@ -1087,8 +1092,7 @@ def show_main_dashboard():
         with col_feed:
             st.subheader("🔔 Hoạt động mới nhất")
             if events_week:
-                recent_events = events_week[:5]
-                for ev in recent_events:
+                for ev in events_week[:5]:
                     is_khen = ev[5] == "Khen thưởng"
                     icon = "🟢" if is_khen else "🔴"
                     border_color = "#00D274" if is_khen else "#ff4b4b"
@@ -1102,33 +1106,26 @@ def show_main_dashboard():
                     </div>
                     """, unsafe_allow_html=True)
             else:
-                st.write("Tuần này lớp/trường khá im ắng, chưa có hoạt động nào được ghi nhận.")
+                st.write("Tuần này khá im ắng, chưa có hoạt động nào được ghi nhận.")
 
     # ==========================================
-    # CÁC ĐOẠN MÃ ĐIỀU HƯỚNG TỚI CÁC TRANG KHÁC
+    # CÁC ĐOẠN MÃ ĐIỀU HƯỚNG
     # ==========================================
-      # <<< THÊM KHÚC NÀY ĐỂ MỞ TRANG BẢNG VÀNG >>>
-    elif choice == "🏆 Bảng Vàng Thi Đua":
+    elif choice == "Bảng Vàng Thi Đua":
         show_leaderboard_page()
-    elif choice == "📅 Điểm danh hàng ngày":
-        show_attendance_page()
-
-    elif choice == "👨‍🎓 Quản lý Lớp học":
+    elif choice == "Quản lý Lớp học":
         show_class_management()
-        
-    elif choice == "📝 Ghi nhận Nhanh":
+    elif choice == "Điểm danh hàng ngày":
+        show_attendance_page()
+    elif choice == "Ghi nhận Nhanh":
         show_quick_record_page()
-        
-    elif choice == "⚖️ Ghi nhận Kỷ luật (TT19)":
+    elif choice == "Ghi nhận Kỷ luật (TT19)":
         show_discipline_page()
-        
-    elif choice == "📊 Thống kê & Báo cáo":
+    elif choice == "Thống kê & Báo cáo":
         show_statistics_page()
-        
-    elif choice == "📑 Tổng kết & Xuất Excel":
+    elif choice == "Tổng kết & Xuất Excel":
         show_summary_page()
-        
-    elif choice == "⚙️ Quản trị Hệ thống":
+    elif choice == "Quản trị Hệ thống":
         show_admin_page()
 
 # --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN ---
