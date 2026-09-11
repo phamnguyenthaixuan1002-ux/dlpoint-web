@@ -5,3 +5,4 @@ SQLAlchemy
 openpyxl
 fpdf2
 matplotlib
+Pillow
