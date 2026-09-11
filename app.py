@@ -1110,7 +1110,7 @@ def show_main_dashboard():
       # <<< THÊM KHÚC NÀY ĐỂ MỞ TRANG BẢNG VÀNG >>>
     elif choice == "🏆 Bảng Vàng Thi Đua":
         show_leaderboard_page()
-     elif choice == "📅 Điểm danh hàng ngày":
+    elif choice == "📅 Điểm danh hàng ngày":
         show_attendance_page()
 
     elif choice == "👨‍🎓 Quản lý Lớp học":
