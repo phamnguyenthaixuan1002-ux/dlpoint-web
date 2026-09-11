@@ -424,13 +424,13 @@ def show_statistics_page():
             # Hiển thị bảng có thể lọc, tìm kiếm
             st.dataframe(df_vipham[['lop', 'to_nhiem_vu', 'mo_ta', 'diem_ap_dung', 'ngay_tao']], width="stretch")
 # --- HÀM 6: TỔNG KẾT & XUẤT EXCEL ---
+# --- HÀM 6: TỔNG KẾT & XUẤT EXCEL ---
 def show_summary_page():
-    st.header("📑 Tổng kết & Xuất Báo cáo Excel")
+    st.header("📑 Tổng kết & Xuất Báo cáo")
     st.markdown("---")
     
     user = st.session_state.user_info
     
-  # Tạo 3 tab trên giao diện Web (THÊM TAB PDF)
     tab_tuan, tab_thang, tab_pdf = st.tabs(["📅 Tổng kết Tuần", "🗓️ Tổng kết Tháng", "🖨️ Xuất Phiếu PDF"])
     
     # ==========================================
@@ -442,7 +442,6 @@ def show_summary_page():
             week_num = st.number_input("Chọn tuần số:", min_value=1, max_value=52, value=1, step=1)
             btn_tuan = st.button("Xem Tổng Kết Tuần", type="primary", width="stretch")
             
-        # Dùng session_state để giữ bảng dữ liệu không bị mất khi ấn nút Tải File
         if btn_tuan or st.session_state.get('show_tuan', False):
             st.session_state.show_tuan = True 
             
@@ -453,7 +452,6 @@ def show_summary_page():
                 end_date_inc = end_date + timedelta(days=1)
                 st.info(f"**Tuần {week_num}:** Từ {start_date.strftime('%d/%m/%Y')} đến {end_date.strftime('%d/%m/%Y')}")
                 
-                # --- Tính toán dữ liệu ---
                 with st.spinner("Đang tính toán điểm..."):
                     all_events = lay_su_kien_trong_khoang_ngay_db(start_date.strftime('%Y-%m-%d'), end_date_inc.strftime('%Y-%m-%d'), user['role'], user['class'], user['group'])
                     all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
@@ -468,7 +466,7 @@ def show_summary_page():
                     for hs in all_students:
                         hs_id, ten_hs, lop_hs, to_hs = hs[0], hs[1], hs[2], hs[3] or ""
                         hs_events = events_by_student.get(hs_id, [])
-                        score = DIEM_KHOI_DAU + sum(e[6] for e in hs_events) # Cột 6 là điểm
+                        score = DIEM_KHOI_DAU + sum(e[6] for e in hs_events)
                         final_score = max(0, score)
                         student_list.append({
                             'id': hs_id, 'ten': ten_hs, 'lop': lop_hs, 'to': to_hs, 
@@ -476,26 +474,21 @@ def show_summary_page():
                         })
                     student_list.sort(key=lambda x: (-x['diem'], x['to']))
                 
-                # Hiển thị bảng
                 df_tuan = pd.DataFrame(student_list)
                 df_tuan.insert(0, 'STT', range(1, len(df_tuan) + 1))
                 st.dataframe(df_tuan[['STT', 'ten', 'lop', 'to', 'diem', 'xeploai']], width="stretch", hide_index=True)
                 
-                # --- XUẤT EXCEL TUẦN ---
                 st.markdown("---")
                 
-                # Tạo file Excel ngầm trong hệ thống
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                     filepath = tmp.name
                     
-                # Chạy file code xuất Excel cũ của thầy    
                 success, msg = generate_weekly_summary_excel(
                     student_list, week_num, user['full_name'], user['class'] or "Toàn trường", user['group'] or "", 
                     start_date, end_date, filepath, [], [], [] 
                 )
                 
                 if success:
-                    # Nếu thành công, đọc file đó lên web và tạo nút Tải Xuống
                     with open(filepath, "rb") as f:
                         excel_data = f.read()
                     
@@ -509,8 +502,52 @@ def show_summary_page():
                     )
                 else:
                     st.error(f"Lỗi tạo Excel: {msg}")
-                os.unlink(filepath) # Dọn rác file tạm
+                os.unlink(filepath)
                 
+                # ==========================================
+                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN ZALO
+                # ==========================================
+                st.markdown("---")
+                st.subheader("💬 Trợ lý tạo tin nhắn Zalo")
+                st.info("Hệ thống đã tự động quét dữ liệu và soạn sẵn tin nhắn dưới đây. Thầy/Cô có thể chỉnh sửa trực tiếp, sau đó bôi đen copy (hoặc bấm biểu tượng copy ở góc) để dán vào nhóm Zalo lớp.")
+
+                # 1. Lọc Top khen thưởng (Lấy các em điểm cao nhất và vượt mức 100)
+                top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
+                if not top_students: 
+                    top_students = [hs['ten'] for hs in student_list[:3]] # Lấy top 3 nếu không có ai vượt 100đ
+
+                # 2. Lọc học sinh có vi phạm trong tuần
+                vipham_dict = {}
+                for ev in all_events:
+                    if ev[5] == 'Vi phạm':
+                        ten_hs = ev[1]
+                        loi = ev[4]
+                        if ten_hs not in vipham_dict:
+                            vipham_dict[ten_hs] = []
+                        vipham_dict[ten_hs].append(loi)
+
+                vipham_text_list = []
+                for ten, cac_loi in vipham_dict.items():
+                    loi_rut_gon = ", ".join(list(set(cac_loi))) # Gom các lỗi trùng lặp lại
+                    vipham_text_list.append(f"{ten} ({loi_rut_gon})")
+
+                # 3. Lắp ráp tin nhắn
+                msg_zalo = f"🌟 KÍNH GỬI QUÝ PHỤ HUYNH LỚP {user['class'] or '...'} - TỔNG KẾT TUẦN {week_num} 🌟\n\n"
+                
+                if top_students:
+                    msg_zalo += f"🏆 Khen ngợi các em tích cực, xuất sắc trong tuần: {', '.join(top_students)}.\n\n"
+                    
+                if vipham_text_list:
+                    msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm nội quy:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh đôn đốc, nhắc nhở thêm các em ở nhà.\n\n"
+                else:
+                    msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
+                    
+                msg_zalo += "📌 Chi tiết về điểm số và xếp loại, quý phụ huynh vui lòng xem trong file Excel đính kèm.\nTrân trọng cảm ơn!"
+
+                # 4. Hiển thị ô Text cho phép sửa
+                st.text_area("Văn bản tin nhắn (Có thể chỉnh sửa):", value=msg_zalo, height=250)
+
+
     # ==========================================
     # TAB 2: TỔNG KẾT THÁNG
     # ==========================================
@@ -559,7 +596,6 @@ def show_summary_page():
             df_thang.insert(0, 'STT', range(1, len(df_thang) + 1))
             st.dataframe(df_thang[['STT', 'ten', 'lop', 'to', 'diem', 'xeploai']], width="stretch", hide_index=True)
             
-            # --- XUẤT EXCEL THÁNG ---
             st.markdown("---")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_m:
                 filepath_m = tmp_m.name
@@ -581,7 +617,9 @@ def show_summary_page():
             else:
                 st.error(f"Lỗi tạo Excel: {msg_m}")
             os.unlink(filepath_m)
- # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (TÍNH NĂNG MỚI)
+
+    # ==========================================
+    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF
     # ==========================================
     with tab_pdf:
         st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
@@ -595,7 +633,6 @@ def show_summary_page():
         st.markdown("---")
         export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"])
         
-        # Lấy danh sách HS để chọn
         all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
         student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
         
@@ -612,20 +649,16 @@ def show_summary_page():
                 st.warning("Vui lòng chọn ít nhất một học sinh.")
             else:
                 with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
-                    # Tạo thư mục tạm trên server để lưu PDF
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         pdf_files = []
                         success_count, fail_count = 0, 0
                         
-                        # Duyệt qua từng HS để tạo PDF
                         for hs in all_students:
                             if hs[0] in selected_student_ids:
-                                # Làm sạch tên file để tránh lỗi tiếng Việt có dấu
                                 safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
                                 filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
                                 filepath = os.path.join(tmpdirname, filename)
                                 
-                                # Gọi hàm tạo PDF từ code cũ
                                 success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
                                 if success:
                                     pdf_files.append((filename, filepath))
@@ -633,11 +666,8 @@ def show_summary_page():
                                 else:
                                     fail_count += 1
                                     
-                        # Xử lý sau khi tạo xong
                         if success_count > 0:
                             st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
-                            
-                            # Nếu chỉ xuất 1 người, cho tải thẳng file PDF
                             if len(pdf_files) == 1:
                                 with open(pdf_files[0][1], "rb") as f:
                                     pdf_data = f.read()
@@ -649,7 +679,6 @@ def show_summary_page():
                                     type="primary",
                                     width="stretch"
                                 )
-                            # Nếu xuất nhiều người, Nén Zip lại cho tiện
                             else:
                                 zip_buffer = io.BytesIO()
                                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
