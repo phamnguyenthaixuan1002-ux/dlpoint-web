@@ -163,7 +163,7 @@ def generate_pdf_report(student_id, year, month, teacher_name, filepath):
     SIGNATURE_BLOCK_HEIGHT = 45
     if pdf.get_y() + SIGNATURE_BLOCK_HEIGHT > (pdf.h - pdf.b_margin): pdf.add_page()
     pdf.set_font('VnFont', 'I', 11)
-    today_date = "..........., ngày {:>2} tháng {:>2} năm {}".format(datetime.now().day, datetime.now().month, datetime.now().year)
+    today_date = "Tân Lộc, ngày {:>2} tháng {:>2} năm {}".format(datetime.now().day, datetime.now().month, datetime.now().year)
     pdf.cell(0, 8, today_date, 0, 1, 'R'); pdf.ln(1)
     y_before_signatures = pdf.get_y(); cell_height = 6
     pdf.set_y(y_before_signatures); pdf.set_x(20); pdf.set_font('VnFont', 'B', 11); pdf.multi_cell(60, cell_height, 'PHỤ HUYNH HỌC SINH', 0, 'C')
