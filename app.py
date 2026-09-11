@@ -801,6 +801,7 @@ def show_main_dashboard():
     # 1. Menu cơ bản ai cũng thấy (BCS, GVCN, Admin)
     menu_options = [
         "🏠 Bảng điều khiển", 
+        "🏆 Bảng Vàng Thi Đua", 
         "👨‍🎓 Quản lý Lớp học", 
         "📝 Ghi nhận Nhanh"
     ]
@@ -909,6 +910,9 @@ def show_main_dashboard():
     # ==========================================
     # CÁC ĐOẠN MÃ ĐIỀU HƯỚNG TỚI CÁC TRANG KHÁC
     # ==========================================
+      # <<< THÊM KHÚC NÀY ĐỂ MỞ TRANG BẢNG VÀNG >>>
+    elif choice == "🏆 Bảng Vàng Thi Đua":
+        show_leaderboard_page()
     elif choice == "👨‍🎓 Quản lý Lớp học":
         show_class_management()
         
@@ -927,6 +931,133 @@ def show_main_dashboard():
     elif choice == "⚙️ Quản trị Hệ thống":
         show_admin_page()
 
+# --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN ---
+def create_certificate_image(student_name, class_name, achievement_text):
+    # Tạo một bức ảnh nền màu vàng nhạt sang trọng
+    img = Image.new('RGB', (800, 600), color='#FDF5E6')
+    draw = ImageDraw.Draw(img)
+
+    # Vẽ khung viền vàng (Đậm ở ngoài, mảnh ở trong)
+    draw.rectangle([20, 20, 780, 580], outline='#DAA520', width=12)
+    draw.rectangle([35, 35, 765, 565], outline='#DAA520', width=3)
+
+    # Tải Font chữ (Dùng luôn thư mục fonts thầy đã có để xuất PDF)
+    try:
+        font_title = ImageFont.truetype("fonts/timesbd.ttf", 55)
+        font_subtitle = ImageFont.truetype("fonts/times.ttf", 30)
+        font_name = ImageFont.truetype("fonts/timesbd.ttf", 65)
+    except:
+        # Dự phòng nếu máy chủ không tìm thấy thư mục fonts
+        font_title = font_subtitle = font_name = ImageFont.load_default()
+
+    # Viết chữ lên Bằng khen (Căn giữa)
+    draw.text((400, 100), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
+    draw.text((400, 200), "Tuyên dương học sinh:", fill="#333333", font=font_subtitle, anchor="mt")
+    draw.text((400, 280), student_name.upper(), fill="#000080", font=font_name, anchor="mt")
+    draw.text((400, 380), f"Học sinh lớp: {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
+    draw.text((400, 450), achievement_text, fill="#D2691E", font=font_subtitle, anchor="mt")
+
+    # Xuất ra định dạng Byte để Web tải về
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=90)
+    return buf.getvalue()
+
+
+# --- HÀM 8: BẢNG VÀNG THI ĐUA ---
+def show_leaderboard_page():
+    st.header("🏆 Bảng Vàng Thi Đua & Vinh Danh")
+    st.markdown("---")
+
+    user = st.session_state.user_info
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    # --- Lấy dữ liệu Tuần hiện tại (Giống hàm Dashboard) ---
+    today = date.today()
+    try:
+        start_date_str = load_setting('school_year_start_date', '2025-09-08')
+        h_json = json.loads(load_setting(HOLIDAY_SETTINGS_KEY, '[]'))
+        h_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in h_json]
+        current_week = get_school_week_number(today, datetime.strptime(start_date_str, '%Y-%m-%d').date(), h_in_year)
+        if current_week <= 0: current_week = 1
+    except:
+        current_week = 1
+        
+    start_w, end_w = get_week_dates_by_number(current_week)
+    if not start_w:
+        start_w, end_w = today - timedelta(days=today.weekday()), today + timedelta(days=6-today.weekday())
+
+    # --- Tính điểm cho tuần này ---
+    all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+    all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=role, assigned_class=aclass, assigned_group=agroup)
+    
+    events_by_student = {}
+    for ev in all_events:
+        events_by_student.setdefault(ev[0], []).append(ev)
+        
+    student_list = []
+    for hs in all_students:
+        score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs[0], []))
+        student_list.append({'id': hs[0], 'ten': hs[1], 'lop': hs[2], 'to': hs[3] or "Không rõ", 'diem': score})
+    
+    # Sắp xếp từ cao xuống thấp
+    student_list.sort(key=lambda x: x['diem'], reverse=True)
+
+    if not student_list:
+        st.info("Chưa có dữ liệu học sinh để xếp hạng.")
+        return
+
+    # === GIAO DIỆN BỤC VINH QUANG TOP 3 ===
+    st.subheader(f"🌟 TOP 3 HỌC SINH XUẤT SẮC NHẤT TUẦN {current_week}")
+    
+    top3 = student_list[:3]
+    # Sắp xếp cột: Á quân (Trái) - Quán quân (Giữa to) - Quý quân (Phải)
+    col2, col1, col3 = st.columns([1, 1.2, 1], gap="medium")
+    
+    # Hàm hiển thị Card học sinh
+    def draw_podium(col, hs, rank, icon, color):
+        with col:
+            st.markdown(f"""
+            <div style='background-color: {color}; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); height: 100%;'>
+                <h1 style='margin:0;'>{icon}</h1>
+                <h3 style='margin:10px 0 5px 0; color: #333;'>{hs['ten']}</h3>
+                <p style='margin:0; font-size:18px; font-weight:bold; color: #d63031;'>{hs['diem']} điểm</p>
+                <p style='margin:0; color: #636e72;'>Lớp: {hs['lop']} | Tổ: {hs['to']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Tạo Nút Tải Bằng khen
+            cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}")
+            st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", use_container_width=True)
+
+    if len(top3) > 0: 
+        draw_podium(col1, top3[0], 1, "🥇", "#FFF9E6") # Top 1
+        st.balloons() # Hiệu ứng bóng bay chúc mừng khi vào trang!
+    if len(top3) > 1: draw_podium(col2, top3[1], 2, "🥈", "#F2F2F2") # Top 2
+    if len(top3) > 2: draw_podium(col3, top3[2], 3, "🥉", "#FFF0E6") # Top 3
+
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+
+    # === BẢNG XẾP HẠNG TỔ (GROUP RANKING) ===
+    col_t_left, col_t_right = st.columns([1, 1])
+    
+    with col_t_left:
+        st.subheader("👥 Bảng Xếp Hạng Tổ (Tuần này)")
+        # Tính điểm trung bình của Tổ
+        df_hs = pd.DataFrame(student_list)
+        if not df_hs.empty:
+            team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
+            team_ranking.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
+            team_ranking.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
+            team_ranking.insert(0, 'Hạng', range(1, len(team_ranking) + 1))
+            st.dataframe(team_ranking, hide_index=True, width="stretch")
+
+    with col_t_right:
+        st.subheader("📜 Top 4-10 (Cố gắng vươn lên)")
+        if len(student_list) > 3:
+            df_rest = pd.DataFrame(student_list[3:10])
+            df_rest.insert(0, 'Hạng', range(4, 4 + len(df_rest)))
+            df_rest.rename(columns={'ten': 'Họ Tên', 'lop': 'Lớp', 'diem': 'Điểm'}, inplace=True)
+            st.dataframe(df_rest[['Hạng', 'Họ Tên', 'Lớp', 'Điểm']], hide_index=True, width="stretch")
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
