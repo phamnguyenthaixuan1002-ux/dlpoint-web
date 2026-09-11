@@ -822,3 +822,16 @@ def them_su_kien_va_ky_luat_db(hs_id, mo_ta, loai_sk, diem_sk, ngay_tao_str, hin
     finally:
         if conn:
             connection_pool.putconn(conn)
+# Dán vào cuối file database.py
+def cap_nhat_anh_the_db(hs_id, anh_the_path):
+    """Cập nhật tên file ảnh thẻ cho học sinh."""
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("UPDATE hoc_sinh SET anh_the_path = %s WHERE id = %s", (anh_the_path, hs_id))
+                conn.commit()
+                return True
+    except (psycopg2.Error, ConnectionError) as e:
+        print(f"Lỗi CSDL khi cập nhật ảnh: {e}")
+    return False
