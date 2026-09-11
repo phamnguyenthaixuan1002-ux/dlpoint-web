@@ -1,0 +1,15 @@
+[theme]
+# Màu chính (Màu của nút bấm, các đường viền, thanh chọn...) - Xanh dương đậm chuẩn Giáo dục
+primaryColor = "#0056b3"
+
+# Màu nền tổng thể của nội dung chính (Trắng tinh khiết giúp dễ đọc)
+backgroundColor = "#FFFFFF"
+
+# Màu nền phụ (Dành cho thanh Sidebar bên trái và các khung nhập liệu) - Xanh nhạt dịu mắt
+secondaryBackgroundColor = "#F4F8FC"
+
+# Màu chữ chính (Màu xám đen than, chống mỏi mắt tốt hơn đen tuyền)
+textColor = "#2C3E50"
+
+# Font chữ (Dùng font không chân hiện đại, bo viền mượt mà)
+font = "sans serif"
