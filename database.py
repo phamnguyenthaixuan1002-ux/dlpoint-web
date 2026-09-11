@@ -2,7 +2,6 @@
 import streamlit as st
 import psycopg2
 from psycopg2 import pool
-from tkinter import messagebox
 import hashlib
 import pandas as pd
 from contextlib import contextmanager
@@ -31,7 +30,7 @@ try:
     connection_pool = psycopg2.pool.SimpleConnectionPool(1, 10, dsn=DB_CONNECTION_STRING)
     print("Khởi tạo Connection Pool thành công!")
 except psycopg2.OperationalError as e:
-    messagebox.showerror("Lỗi Khởi tạo CSDL", f"Không thể tạo Connection Pool.\nKiểm tra chuỗi kết nối và mạng Internet.\n\nLỗi: {e}")
+    print("Lỗi Khởi tạo CSDL", f"Không thể tạo Connection Pool.\nKiểm tra chuỗi kết nối và mạng Internet.\n\nLỗi: {e}")
     connection_pool = None
 
 @contextmanager
@@ -68,9 +67,9 @@ def save_setting(key, value):
                 conn.commit()
             else:
                 print("Không có kết nối CSDL, không thể lưu cài đặt.")
-                messagebox.showerror("Lỗi CSDL", "Không có kết nối CSDL, không thể lưu cài đặt.")
+                print("Lỗi CSDL", "Không có kết nối CSDL, không thể lưu cài đặt.")
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Không thể lưu cài đặt: {e}")
+        print("Lỗi CSDL", f"Không thể lưu cài đặt: {e}")
 
 def load_setting(key, default_value=None):
     try:
@@ -84,7 +83,7 @@ def load_setting(key, default_value=None):
                 print("Không có kết nối CSDL, không thể tải cài đặt.")
                 return default_value
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Không thể tải cài đặt: {e}")
+        print("Lỗi CSDL", f"Không thể tải cài đặt: {e}")
         return default_value
 
 def get_week_dates_by_number(week_number):
@@ -144,7 +143,7 @@ def verify_user(username, password):
             else:
                 return None
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi xác thực người dùng: {e}")
+        print("Lỗi CSDL", f"Lỗi xác thực người dùng: {e}")
     return None
 
 def get_all_users_db():
@@ -157,7 +156,7 @@ def get_all_users_db():
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi lấy danh sách người dùng: {e}")
+        print("Lỗi CSDL", f"Lỗi lấy danh sách người dùng: {e}")
         return []
 
 def add_user_db(username, full_name, password, role, assigned_class, assigned_group):
@@ -211,7 +210,7 @@ def delete_user_db(user_id):
             else:
                 return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi khi xóa người dùng: {e}")
+        print("Lỗi CSDL", f"Lỗi khi xóa người dùng: {e}")
         return False
 
 def get_distinct_classes_and_groups_db():
@@ -227,7 +226,7 @@ def get_distinct_classes_and_groups_db():
             else:
                 return [], []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi lấy danh sách lớp/tổ: {e}")
+        print("Lỗi CSDL", f"Lỗi lấy danh sách lớp/tổ: {e}")
         return [], []
 
 def them_danh_muc_su_kien_db(ten, loai, diem, muc_do):
@@ -243,13 +242,13 @@ def them_danh_muc_su_kien_db(ten, loai, diem, muc_do):
                 conn.commit()
                 return True
             else:
-                messagebox.showerror("Lỗi", "Không có kết nối CSDL.")
+                print("Lỗi", "Không có kết nối CSDL.")
                 return False
     except psycopg2.IntegrityError:
-        messagebox.showerror("Lỗi", f"Tên sự kiện '{ten}' đã tồn tại.")
+        print("Lỗi", f"Tên sự kiện '{ten}' đã tồn tại.")
         return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return False
 
 def lay_tat_ca_danh_muc_su_kien_db():
@@ -266,7 +265,7 @@ def lay_tat_ca_danh_muc_su_kien_db():
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return []
 
 def sua_danh_muc_su_kien_db(id_dm, ten, loai, diem, muc_do):
@@ -282,13 +281,13 @@ def sua_danh_muc_su_kien_db(id_dm, ten, loai, diem, muc_do):
                 conn.commit()
                 return True
             else:
-                messagebox.showerror("Lỗi", "Không có kết nối CSDL.")
+                print("Lỗi", "Không có kết nối CSDL.")
                 return False
     except psycopg2.IntegrityError:
-        messagebox.showerror("Lỗi", f"Tên '{ten}' có thể đã tồn tại.")
+        print("Lỗi", f"Tên '{ten}' có thể đã tồn tại.")
         return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return False
 
 def xoa_danh_muc_su_kien_db(id_dm):
@@ -300,10 +299,10 @@ def xoa_danh_muc_su_kien_db(id_dm):
                 conn.commit()
                 return True
             else:
-                messagebox.showerror("Lỗi", "Không có kết nối CSDL.")
+                print("Lỗi", "Không có kết nối CSDL.")
                 return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return False
 
 def them_hoc_sinh_db(student_data_dict):
@@ -337,10 +336,10 @@ def sua_hoc_sinh_db(student_id, student_data_dict):
                 conn.commit()
                 return True
             else:
-                messagebox.showerror("Lỗi", "Không có kết nối CSDL.")
+                print("Lỗi", "Không có kết nối CSDL.")
                 return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL sửa HS", f"{e}")
+        print("Lỗi CSDL sửa HS", f"{e}")
         return False
 
 def lay_danh_sach_hoc_sinh_db(user_role, assigned_class=None, assigned_group=None):
@@ -367,7 +366,7 @@ def lay_danh_sach_hoc_sinh_db(user_role, assigned_class=None, assigned_group=Non
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi lấy danh sách học sinh: {e}")
+        print("Lỗi CSDL", f"Lỗi lấy danh sách học sinh: {e}")
         return []
 
 def lay_thong_tin_day_du_hoc_sinh_db(student_id=None, user_role='admin', assigned_class=None, assigned_group=None):
@@ -398,7 +397,7 @@ def lay_thong_tin_day_du_hoc_sinh_db(student_id=None, user_role='admin', assigne
             else:
                 return None if student_id else []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi lấy thông tin học sinh: {e}")
+        print("Lỗi CSDL", f"Lỗi lấy thông tin học sinh: {e}")
         return None if student_id else []
     
 def tim_hoc_sinh_db(ten, aclass, agroup=None, role='admin'):
@@ -456,7 +455,7 @@ def xoa_nhieu_hoc_sinh_db(student_ids):
             else:
                 return 0
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL Xóa Nhiều HS", f"Đã xảy ra lỗi:\n{e}")
+        print("Lỗi CSDL Xóa Nhiều HS", f"Đã xảy ra lỗi:\n{e}")
         return 0
 
 def them_su_kien_ren_luyen_db(hs_id, mo_ta, loai, diem, ngay_tao_str):
@@ -469,10 +468,10 @@ def them_su_kien_ren_luyen_db(hs_id, mo_ta, loai, diem, ngay_tao_str):
                 conn.commit()
                 return True
             else:
-                messagebox.showerror("Lỗi", "Không có kết nối CSDL.")
+                print("Lỗi", "Không có kết nối CSDL.")
                 return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return False
 
 def lay_su_kien_ren_luyen_cua_hoc_sinh_db(hs_id):
@@ -485,7 +484,7 @@ def lay_su_kien_ren_luyen_cua_hoc_sinh_db(hs_id):
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return []
 
 def lay_su_kien_ren_luyen_nhieu_hoc_sinh_db(student_ids):
@@ -509,7 +508,7 @@ def lay_su_kien_ren_luyen_nhieu_hoc_sinh_db(student_ids):
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Không thể lấy lịch sử rèn luyện:\n{e}")
+        print("Lỗi CSDL", f"Không thể lấy lịch sử rèn luyện:\n{e}")
         return []
 
 def xoa_su_kien_ren_luyen_db(ev_id):
@@ -524,7 +523,7 @@ def xoa_su_kien_ren_luyen_db(ev_id):
             else:
                 return False
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"{e}")
+        print("Lỗi CSDL", f"{e}")
         return False
 
 def lay_su_kien_trong_khoang_ngay_db(start_date_str, end_date_str, user_role='admin', assigned_class=None, assigned_group=None):
@@ -555,7 +554,7 @@ def lay_su_kien_trong_khoang_ngay_db(start_date_str, end_date_str, user_role='ad
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Lỗi lấy sự kiện theo ngày: {e}")
+        print("Lỗi CSDL", f"Lỗi lấy sự kiện theo ngày: {e}")
         return []
 
 # TÌM VÀ THAY THẾ HÀM NÀY TRONG FILE database.py
@@ -578,7 +577,7 @@ def lay_su_kien_cho_thong_ke_df(start_date_str, end_date_str):
         )
         return df
     except Exception as e:
-        messagebox.showerror("Lỗi CSDL", f"Không thể lấy dữ liệu thống kê: {e}")
+        print("Lỗi CSDL", f"Không thể lấy dữ liệu thống kê: {e}")
         return pd.DataFrame()
 
 def lay_su_kien_trong_thang_cua_hoc_sinh_db(hs_id, year, month):
@@ -600,7 +599,7 @@ def lay_su_kien_trong_thang_cua_hoc_sinh_db(hs_id, year, month):
             else:
                 return []
     except (psycopg2.Error, ConnectionError) as e:
-        messagebox.showerror("Lỗi CSDL", f"Không thể lấy dữ liệu rèn luyện tháng:\n{e}")
+        print("Lỗi CSDL", f"Không thể lấy dữ liệu rèn luyện tháng:\n{e}")
         return []
 
 def them_hinh_thuc_xu_ly_db(student_id, muc_do, hoc_ky, ghi_chu=''):
