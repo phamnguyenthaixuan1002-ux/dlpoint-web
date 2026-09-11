@@ -887,6 +887,103 @@ def show_admin_page():
                                 st.success(f"Đã xóa thành công {deleted_count} học sinh.")
                                 st.rerun()
 # --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
+# --- HÀM 9: ĐIỂM DANH HÀNG NGÀY ---
+def show_attendance_page():
+    st.header("📅 Điểm danh Hàng ngày")
+    st.markdown("---")
+
+    user = st.session_state.user_info
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    # 1. Chọn ngày
+    col_d1, col_d2 = st.columns([1, 3])
+    with col_d1:
+        attendance_date = st.date_input("Ngày điểm danh:", date.today(), format="DD/MM/YYYY")
+
+    # 2. Lấy danh sách học sinh
+    raw_students = lay_danh_sach_hoc_sinh_db(role, aclass, agroup)
+    if not raw_students:
+        st.warning("Không có học sinh nào trong phạm vi quản lý.")
+        return
+
+    # Chuẩn bị dữ liệu cho Bảng tương tác (Mặc định tất cả là "Có mặt")
+    student_data = []
+    for i, hs in enumerate(raw_students, 1):
+        student_data.append({
+            "ID": hs[0],
+            "STT": i,
+            "Họ và Tên": hs[1],
+            "Tổ": hs[3] or "",
+            "Trạng thái": "Có mặt",  # Mặc định
+            "Ghi chú (Tùy chọn)": ""
+        })
+
+    df_attendance = pd.DataFrame(student_data)
+
+    st.info("💡 **Hướng dẫn:** Nhấn đúp chuột vào cột **'Trạng thái'** để đổi sang Vắng/Trễ. Hệ thống sẽ tự động trừ điểm rèn luyện tương ứng khi bấm Lưu.")
+
+    # 3. Hiển thị Bảng Điểm danh tương tác (Data Editor của Streamlit)
+    edited_df = st.data_editor(
+        df_attendance,
+        hide_index=True,
+        column_config={
+            "ID": None, # Ẩn cột ID đi cho đẹp
+            "STT": st.column_config.NumberColumn(disabled=True),
+            "Họ và Tên": st.column_config.TextColumn(disabled=True),
+            "Tổ": st.column_config.TextColumn(disabled=True),
+            "Trạng thái": st.column_config.SelectboxColumn(
+                options=["Có mặt", "Vắng có phép", "Vắng không phép", "Đi trễ"],
+                required=True
+            ),
+            "Ghi chú (Tùy chọn)": st.column_config.TextColumn()
+        },
+        use_container_width=True
+    )
+
+    st.markdown("---")
+    
+    # 4. Xử lý khi bấm nút Lưu
+    if st.button("💾 Lưu Điểm danh", type="primary", width="stretch"):
+        # Lấy danh mục sự kiện hiện có trong CSDL để map điểm
+        all_events = lay_tat_ca_danh_muc_su_kien_db()
+        event_map = {e[1]: (e[2], e[3]) for e in all_events} # {Tên: (Loại, Điểm)}
+
+        # Mức điểm dự phòng nếu thầy chưa tạo các sự kiện này trong mục Quản trị
+        fallback_map = {
+            "Vắng không phép": ("Vi phạm", -5),
+            "Vắng có phép": ("Vi phạm", 0),  # Không trừ điểm
+            "Đi trễ": ("Vi phạm", -2)
+        }
+
+        ngay_tao_str = attendance_date.strftime('%Y-%m-%d %H:%M:%S')
+        success_count = 0
+        
+        with st.spinner("Đang lưu dữ liệu điểm danh..."):
+            # Quét qua bảng dữ liệu vừa chỉnh sửa
+            for index, row in edited_df.iterrows():
+                status = row["Trạng thái"]
+                
+                # Chỉ ghi nhận vào CSDL nếu HS đó Vắng hoặc Trễ
+                if status != "Có mặt":
+                    hs_id = row["ID"]
+                    ghi_chu = row["Ghi chú (Tùy chọn)"]
+                    # Nối ghi chú vào tên sự kiện (nếu có)
+                    mo_ta = f"{status}" + (f" ({ghi_chu})" if ghi_chu else "")
+                    
+                    # Tìm xem CSDL đã cài đặt điểm cho lỗi này chưa, chưa thì dùng dự phòng
+                    if status in event_map:
+                        loai_sk, diem_sk = event_map[status]
+                    else:
+                        loai_sk, diem_sk = fallback_map.get(status, ("Vi phạm", 0))
+                        
+                    # Lưu vào CSDL
+                    if them_su_kien_ren_luyen_db(hs_id, mo_ta, loai_sk, diem_sk, ngay_tao_str):
+                        success_count += 1
+
+        if success_count > 0:
+            st.success(f"✅ Đã lưu điểm danh! Có **{success_count}** học sinh (Vắng/Trễ) được ghi nhận và tự động cập nhật điểm rèn luyện.")
+        else:
+            st.success("✅ Đã lưu điểm danh! Hôm nay 100% học sinh có mặt đầy đủ.")
 # --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
 def show_main_dashboard():
     user = st.session_state.user_info
@@ -902,6 +999,7 @@ def show_main_dashboard():
         "🏠 Bảng điều khiển", 
         "🏆 Bảng Vàng Thi Đua", 
         "👨‍🎓 Quản lý Lớp học", 
+        "📅 Điểm danh hàng ngày", # <<< THÊM MENU NÀY
         "📝 Ghi nhận Nhanh"
     ]
     
@@ -1012,6 +1110,9 @@ def show_main_dashboard():
       # <<< THÊM KHÚC NÀY ĐỂ MỞ TRANG BẢNG VÀNG >>>
     elif choice == "🏆 Bảng Vàng Thi Đua":
         show_leaderboard_page()
+     elif choice == "📅 Điểm danh hàng ngày":
+        show_attendance_page()
+
     elif choice == "👨‍🎓 Quản lý Lớp học":
         show_class_management()
         
