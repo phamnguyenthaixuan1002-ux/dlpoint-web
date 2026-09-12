@@ -893,29 +893,125 @@ def show_admin_page():
                         st.error("Vui lòng nhập đủ các trường bắt buộc (*).")
 
     # ==========================================
-    # TAB 2: QUẢN LÝ DANH MỤC SỰ KIỆN (TT19)
+    # ==========================================
+    # TAB 2: QUẢN LÝ DANH MỤC SỰ KIỆN (TT19) - ĐÃ NÂNG CẤP EXCEL & XÓA NHIỀU
     # ==========================================
     with tab_events:
+        st.info("Quản lý danh mục các lỗi vi phạm và thành tích khen thưởng để áp dụng toàn trường.")
+
+        # --- 1. KHU VỰC NHẬP BẰNG EXCEL ---
+        with st.expander("📥 Bấm vào đây để TẠO/CẬP NHẬT HÀNG LOẠT bằng file Excel", expanded=False):
+            col_ex1, col_ex2 = st.columns([1, 1])
+            
+            with col_ex1:
+                st.write("1. Tải file mẫu về máy và điền danh sách sự kiện.")
+                # Tạo file Excel mẫu trên RAM
+                df_mau_sk = pd.DataFrame({
+                    "Tên sự kiện": ["Đi học trễ", "Không đồng phục", "Nhặt được của rơi"],
+                    "Loại": ["Vi phạm", "Vi phạm", "Khen thưởng"],
+                    "Điểm": [-2, -5, 10],
+                    "Mức độ vi phạm": [1, 2, None]
+                })
+                output_sk = io.BytesIO()
+                with pd.ExcelWriter(output_sk, engine='openpyxl') as writer:
+                    df_mau_sk.to_excel(writer, index=False)
+                
+                st.download_button(
+                    label="⬇️ Tải File Excel Mẫu",
+                    data=output_sk.getvalue(),
+                    file_name="Mau_Nhap_Su_Kien.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_dl_sk_template"
+                )
+                st.caption("Lưu ý: Cột 'Loại' phải gõ đúng chữ 'Vi phạm' hoặc 'Khen thưởng'.")
+
+            with col_ex2:
+                st.write("2. Tải file đã điền lên hệ thống.")
+                uploaded_sk = st.file_uploader("Chọn file Excel sự kiện:", type=['xlsx', 'xls'], key="up_sk_excel")
+                
+                if uploaded_sk is not None:
+                    if st.button("🚀 Xử lý & Nhập dữ liệu", type="primary", key="btn_import_sk"):
+                        try:
+                            df_imp_sk = pd.read_excel(uploaded_sk)
+                            success_sk, fail_sk = 0, 0
+                            
+                            with st.spinner("Đang lưu vào hệ thống..."):
+                                for _, row in df_imp_sk.iterrows():
+                                    ten = str(row.get("Tên sự kiện", "")).strip()
+                                    loai = str(row.get("Loại", "")).strip()
+                                    diem_val = row.get("Điểm")
+                                    md_val = row.get("Mức độ vi phạm")
+                                    
+                                    if not ten or ten == "nan" or loai not in ["Vi phạm", "Khen thưởng"]:
+                                        fail_sk += 1; continue
+                                        
+                                    try: diem = int(diem_val)
+                                    except: fail_sk += 1; continue
+                                    
+                                    # Xử lý mức độ
+                                    muc_do = None
+                                    if loai == "Vi phạm" and pd.notna(md_val):
+                                        try: muc_do = int(md_val)
+                                        except: pass
+                                        
+                                    # Hàm này có tính năng UPSERT: Đã có tên thì cập nhật, chưa có thì thêm mới
+                                    if them_hoac_cap_nhat_danh_muc_db(ten, loai, diem, muc_do):
+                                        success_sk += 1
+                                    else: fail_sk += 1
+                                    
+                            st.success(f"✅ Nhập hoàn tất: Thành công {success_sk}. Lỗi/Bỏ qua {fail_sk}.")
+                            st.rerun() # Tải lại trang để hiện list mới
+                        except Exception as e:
+                            st.error(f"Lỗi file: {e}")
+
+        st.markdown("---")
+
+        # --- 2. KHU VỰC DANH SÁCH (CÓ CHECKBOX XÓA) & FORM SỬA TAY ---
         col_elist, col_eform = st.columns([1.5, 1], gap="large")
         
         with col_elist:
-            st.subheader("Danh sách Lỗi & Khen thưởng")
+            st.subheader("📋 Danh sách Sự kiện (Xóa hàng loạt)")
             events = lay_tat_ca_danh_muc_su_kien_db()
             if events:
-                df_events = pd.DataFrame(events, columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ Vi phạm"])
-                st.dataframe(df_events, width="stretch", hide_index=True)
+                df_events = pd.DataFrame(events, columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ"])
+                # Thêm cột Checkbox để tick chọn
+                df_events.insert(0, "Chọn xóa", False)
+                
+                st.write("Đánh dấu tick [x] vào các sự kiện muốn xóa:")
+                edited_ev_df = st.data_editor(
+                    df_events,
+                    hide_index=True,
+                    column_config={
+                        "Chọn xóa": st.column_config.CheckboxColumn(required=True),
+                        "ID": None # Ẩn ID cho đẹp
+                    },
+                    disabled=["Tên Sự kiện", "Loại", "Điểm", "Mức độ"], # Không cho sửa chữ, chỉ cho tick ô vuông
+                    use_container_width=True,
+                    key="editor_events_v2"
+                )
+                
+                # Lọc ra ID của các dòng được tick True
+                selected_ev_rows = edited_ev_df[edited_ev_df["Chọn xóa"] == True]
+                ids_to_del_ev = selected_ev_rows["ID"].tolist()
+                
+                if len(ids_to_del_ev) > 0:
+                    st.warning(f"Bạn đang chọn xóa {len(ids_to_del_ev)} sự kiện.")
+                    if st.button("🗑️ Xác nhận Xóa", type="primary", key="btn_del_events_v2"):
+                        del_ev_count = xoa_nhieu_danh_muc_su_kien_db(ids_to_del_ev)
+                        st.success(f"Đã xóa thành công {del_ev_count} sự kiện.")
+                        st.rerun()
 
         with col_eform:
-            st.subheader("Thêm/Sửa Sự kiện")
-            with st.form("form_event"):
+            st.subheader("Thêm/Sửa 1 Sự kiện")
+            st.info("💡 Mẹo: Nhập tên sự kiện ĐÃ CÓ để Cập nhật lại điểm/mức độ.")
+            with st.form("form_event_v2"):
                 e_name = st.text_input("Tên sự kiện *")
                 e_type = st.selectbox("Loại", ["Vi phạm", "Khen thưởng"])
                 e_points = st.number_input("Điểm (+ hoặc -)", value=0)
-                e_level = st.selectbox("Mức độ vi phạm theo TT19 (Chỉ dành cho lỗi)", ["Không xét KL", "1", "2", "3"])
+                e_level = st.selectbox("Mức độ vi phạm theo TT19", ["Không xét KL", "1", "2", "3"])
 
-                if st.form_submit_button("💾 Lưu Sự kiện", type="primary"):
+                if st.form_submit_button("💾 Lưu Sự kiện", type="primary", use_container_width=True):
                     if e_name:
-                        # Logic: Khen thưởng thì không có mức độ kỷ luật
                         muc_do = int(e_level) if e_level != "Không xét KL" and e_type == "Vi phạm" else None
                         if them_hoac_cap_nhat_danh_muc_db(e_name, e_type, e_points, muc_do):
                             st.success(f"Đã lưu sự kiện **{e_name}**!")
