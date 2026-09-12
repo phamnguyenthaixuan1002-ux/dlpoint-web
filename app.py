@@ -25,8 +25,8 @@ from database import (
     get_distinct_classes_and_groups_db,
     them_hoc_sinh_db, xoa_nhieu_hoc_sinh_db,
     them_su_kien_ren_luyen_db,
-    cap_nhat_anh_the_db, # <<< THÊM HÀM NÀY
-    xoa_nhieu_danh_muc_su_kien_db # <<< THÊM HÀM NÀY
+    cap_nhat_anh_the_db,             # <<< Đã có dấu phẩy ở đây
+    xoa_nhieu_danh_muc_su_kien_db    # Hàm mới thêm
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
