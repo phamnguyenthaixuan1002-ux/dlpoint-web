@@ -289,7 +289,8 @@ def show_quick_record_page():
         label = f"{icon} {ten} ({diem_str})"
         event_dict[label] = (ten, loai, diem)
 
-    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY")
+    # Đã thêm key mới cho ngày tháng
+    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_v2")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
 
@@ -302,13 +303,13 @@ def show_quick_record_page():
     with tab1:
         st.info("💡 Chạm chọn 1 Sự kiện, sau đó chọn danh sách học sinh bên dưới.")
         
-        # SỬ DỤNG GIAO DIỆN PILLS (CHẠM) THAY VÌ XỔ XUỐNG
-        selected_event_1 = st.pills("1. Chạm chọn 1 Sự kiện:", options=list(event_dict.keys()), selection_mode="single")
-        
-        selected_students_1 = st.multiselect("2. Chọn các Học sinh:", options=list(student_dict.keys()))
+        # SỬ DỤNG GIAO DIỆN PILLS (Đã thêm key mới)
+        selected_event_1 = st.pills("1. Chạm chọn 1 Sự kiện:", options=list(event_dict.keys()), selection_mode="single", key="pill_tab1_v2")
+        selected_students_1 = st.multiselect("2. Chọn các Học sinh:", options=list(student_dict.keys()), key="ms_tab1_v2")
             
-        if st.button("🚀 Ghi nhận cho danh sách trên", type="primary", width="stretch", key="btn_tab1"):
-            if selected_event_1 and selected_students_1: # Kiểm tra xem đã chạm chọn chưa
+        # Đã đổi key thành btn_tab1_v2
+        if st.button("🚀 Ghi nhận cho danh sách trên", type="primary", width="stretch", key="btn_tab1_v2"):
+            if selected_event_1 and selected_students_1: 
                 ten_sk, loai_sk, diem_sk = event_dict[selected_event_1]
                 count = 0
                 for hs_name in selected_students_1:
@@ -324,12 +325,15 @@ def show_quick_record_page():
     # ==========================================
     with tab2:
         st.info("💡 Chọn 1 Học sinh, sau đó chạm để chọn nhiều Sự kiện cùng lúc.")
-        selected_student_2 = st.selectbox("1. Chọn Học sinh:", options=["-- Chọn --"] + list(student_dict.keys()))
         
-        # SỬ DỤNG GIAO DIỆN PILLS (CHỌN NHIỀU - MULTI)
-        selected_events_2 = st.pills("2. Chạm chọn các Sự kiện (được chọn nhiều):", options=list(event_dict.keys()), selection_mode="multi")
+        # Đã đổi key thành sb_tab2_v2
+        selected_student_2 = st.selectbox("1. Chọn Học sinh:", options=["-- Chọn --"] + list(student_dict.keys()), key="sb_tab2_v2")
+        
+        # SỬ DỤNG GIAO DIỆN PILLS CHỌN NHIỀU (Đã thêm key mới)
+        selected_events_2 = st.pills("2. Chạm chọn các Sự kiện (được chọn nhiều):", options=list(event_dict.keys()), selection_mode="multi", key="pill_tab2_v2")
 
-        if st.button("🚀 Ghi nhận các sự kiện trên", type="primary", width="stretch", key="btn_tab2"):
+        # Đã đổi key thành btn_tab2_v2
+        if st.button("🚀 Ghi nhận các sự kiện trên", type="primary", width="stretch", key="btn_tab2_v2"):
             if selected_student_2 != "-- Chọn --" and selected_events_2:
                 hs_id = student_dict[selected_student_2]
                 count = 0
@@ -342,32 +346,6 @@ def show_quick_record_page():
                 st.success(f"✅ Đã ghi nhận **{count}** sự kiện cho học sinh **{hs_ten_ngan}** thành công!")
             else:
                 st.error("👆 Vui lòng chọn 1 học sinh và chạm chọn ít nhất 1 sự kiện.")
-    # ==========================================
-    # KỊCH BẢN 2: NHIỀU SỰ KIỆN CHO 1 HS
-    # ==========================================
-    with tab2:
-        st.info("💡 Dùng khi: Một em vừa đi trễ, vừa không thuộc bài, nhưng lại có phát biểu gỡ điểm...")
-        col2_1, col2_2 = st.columns([1, 1])
-        
-        with col2_1:
-            selected_student_2 = st.selectbox("1. Chọn Học sinh:", options=["-- Chọn --"] + list(student_dict.keys()), key="hs_tab2")
-        with col2_2:
-            selected_events_2 = st.multiselect("2. Chọn các Sự kiện:", options=list(event_dict.keys()), key="ev_tab2")
-
-        if st.button("🚀 Ghi nhận các sự kiện trên", type="primary", key="btn_tab2"):
-            if selected_student_2 != "-- Chọn --" and selected_events_2:
-                hs_id = student_dict[selected_student_2]
-                count = 0
-                for ev_label in selected_events_2:
-                    ten_sk, loai_sk, diem_sk = event_dict[ev_label]
-                    if them_su_kien_ren_luyen_db(hs_id, ten_sk, loai_sk, diem_sk, ngay_tao_str):
-                        count += 1
-                
-                # Tách tên học sinh cho đẹp
-                hs_ten_ngan = selected_student_2.split("(")[0].strip()
-                st.success(f"✅ Đã ghi nhận **{count}** sự kiện cho học sinh **{hs_ten_ngan}** thành công!")
-            else:
-                st.error("Vui lòng chọn 1 học sinh và ít nhất 1 sự kiện.")
 # --- HÀM 4: GHI NHẬN KỶ LUẬT (TT19) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật (Theo Thông tư 19)")
