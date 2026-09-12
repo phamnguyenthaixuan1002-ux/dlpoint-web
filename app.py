@@ -179,7 +179,7 @@ def show_class_management():
             else:
                 st.info("Chưa có sự kiện rèn luyện nào được ghi nhận.")
 
-        # === TAB 3: MỤC TIÊU & PHẢN HỒI (CÓ TÍCH HỢP AI) ===
+       # === TAB 3: MỤC TIÊU & PHẢN HỒI (CÓ TÍCH HỢP AI MỚI NHẤT) ===
         with tab_muc_tieu:
             st.write("Giáo viên Chủ nhiệm có thể ghi chú mục tiêu phấn đấu và nhận xét cá nhân tại đây:")
             
@@ -193,9 +193,9 @@ def show_class_management():
                 else:
                     with st.spinner("🤖 AI đang đọc hồ sơ, phân tích ưu/khuyết điểm và soạn lời phê..."):
                         try:
-                            # 1. Cấu hình AI
-                            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            model = genai.GenerativeModel('gemini-pro') # <<< Sửa thành 'gemini-pro'
+                            # 1. Cấu hình AI THEO CHUẨN MỚI CỦA GOOGLE
+                            from google import genai
+                            client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                             
                             # 2. Lọc dữ liệu của tháng hiện tại
                             now = datetime.now()
@@ -203,7 +203,6 @@ def show_class_management():
                             _, last_day = calendar.monthrange(now.year, now.month)
                             end_m = datetime(now.year, now.month, last_day).date()
                             
-                            # Lấy các sự kiện trong tháng của HS này
                             sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
                             
                             diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
@@ -229,8 +228,12 @@ def show_class_management():
                             - Chỉ trả về đoạn văn bản nhận xét, không cần chào hỏi hay giải thích thêm.
                             """
                             
-                            # 4. Gọi AI sinh kết quả
-                            response = model.generate_content(prompt)
+                            # 4. Gọi AI sinh kết quả (Dùng model gemini-2.5-flash thế hệ mới cực nhanh)
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash',
+                                contents=prompt
+                            )
+                            
                             # Lưu kết quả tạm thời vào session_state để điền vào ô Text
                             st.session_state[f"ai_phan_hoi_{hs_id}"] = response.text
                             st.toast("AI đã viết xong!", icon="🎉")
@@ -238,7 +241,7 @@ def show_class_management():
                         except Exception as e:
                             st.error(f"Lỗi khi gọi AI: {e}")
 
-            # Lấy giá trị hiển thị (Ưu tiên bản nháp của AI nếu vừa bấm nút, nếu không thì lấy dữ liệu cũ từ DB)
+            # Lấy giá trị hiển thị 
             hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}", phan_hoi_cu)
             
             new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=100)
