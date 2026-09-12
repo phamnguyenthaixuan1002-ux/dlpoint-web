@@ -12,6 +12,7 @@ import io # <<< THÊM THƯ VIỆN NÀY (Để xử lý file Excel mẫu tải v�
 import base64 # <<< THÊM THƯ VIỆN NÀY ĐỂ XỬ LÝ ẢNH TRÊN WEB
 import zipfile  # <<< THÊM DÒNG NÀY
 import google.generativeai as genai
+import streamlit.components.v1 as components # Thư viện để nhúng mã PWA
 from database import (
     init_db, verify_user, lay_danh_sach_hoc_sinh_db,
     lay_tat_ca_danh_muc_su_kien_db, lay_chi_tiet_danh_muc_su_kien_db,
@@ -45,7 +46,65 @@ def get_cached_events():
 # --- CẤU HÌNH TRANG WEB ---
 # Lệnh này phải đặt ở đầu tiên
 st.set_page_config(page_title="DLPOINT Web", page_icon="🎓", layout="wide")
+# =========================================================
+# THIẾT LẬP APP TRÀN VIỀN TRÊN ĐIỆN THOẠI (PWA)
+# =========================================================
+def setup_pwa():
+    pwa_code = """
+    <script>
+        // Lấy thẻ head của trang web mẹ
+        const parentHead = window.parent.document.getElementsByTagName('head')[0];
+        
+        // Tránh chèn nhiều lần khi tải lại trang
+        if (!window.parent.document.getElementById('pwa-manifest')) {
+            
+            // 1. Khai báo cho iPhone/iPad (iOS)
+            const meta1 = window.parent.document.createElement('meta');
+            meta1.name = "apple-mobile-web-app-capable";
+            meta1.content = "yes";
+            parentHead.appendChild(meta1);
 
+            const meta2 = window.parent.document.createElement('meta');
+            meta2.name = "apple-mobile-web-app-status-bar-style";
+            meta2.content = "default";
+            parentHead.appendChild(meta2);
+
+            const meta3 = window.parent.document.createElement('meta');
+            meta3.name = "apple-touch-icon";
+            meta3.content = "https://cdn-icons-png.flaticon.com/512/149/149071.png"; // Có thể thay link logo trường thầy vào đây
+            parentHead.appendChild(meta3);
+
+            // 2. Tạo file Cấu hình ứng dụng (Manifest) cho Android/Chrome
+            const manifestJSON = {
+                "name": "DLPOINT App",
+                "short_name": "DLPOINT",
+                "description": "Phần mềm Quản lý Rèn luyện",
+                "start_url": ".",
+                "display": "standalone", // Lệnh này giúp app mở tràn viền, mất thanh URL
+                "background_color": "#ffffff",
+                "theme_color": "#0056b3",
+                "icons": [{
+                    "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }]
+            };
+            
+            // Chèn file cấu hình vào trang web
+            const blob = new Blob([JSON.stringify(manifestJSON)], {type: 'application/json'});
+            const manifestURL = URL.createObjectURL(blob);
+            const linkManifest = window.parent.document.createElement('link');
+            linkManifest.id = 'pwa-manifest';
+            linkManifest.rel = 'manifest';
+            linkManifest.href = manifestURL;
+            parentHead.appendChild(linkManifest);
+        }
+    </script>
+    """
+    components.html(pwa_code, height=0, width=0)
+# Gọi hàm chạy ngầm ngay khi mở web
+setup_pwa()
+# =========================================================
 # Khởi tạo kết nối CSDL (dùng chung file database.py cũ của thầy)
 init_db()
 
