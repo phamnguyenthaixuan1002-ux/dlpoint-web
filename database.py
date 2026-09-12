@@ -835,3 +835,21 @@ def cap_nhat_anh_the_db(hs_id, anh_the_path):
     except (psycopg2.Error, ConnectionError) as e:
         print(f"Lỗi CSDL khi cập nhật ảnh: {e}")
     return False
+# Dán vào cuối file database.py
+
+def xoa_nhieu_danh_muc_su_kien_db(list_ids):
+    """Xóa nhiều danh mục sự kiện cùng lúc dựa vào danh sách ID."""
+    if not list_ids: return 0
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    # Dùng cú pháp ANY(%s) của PostgreSQL để xóa một list
+                    sql = "DELETE FROM danh_muc_su_kien WHERE id = ANY(%s)"
+                    cursor.execute(sql, (list_ids,))
+                    deleted_count = cursor.rowcount
+                conn.commit()
+                return deleted_count
+    except (psycopg2.Error, Exception) as e:
+        print(f"Lỗi khi xóa nhiều danh mục: {e}")
+        return 0
