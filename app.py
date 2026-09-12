@@ -222,7 +222,7 @@ def show_class_management():
                             - Khuyết điểm (Các lần vi phạm): {vp_str}
                             
                             Yêu cầu viết: 
-                            - Giọng văn chuẩn mực sư phạm, tình cảm, xưng 'thầy/cô' và gọi 'em'. 
+                            - Giọng văn chuẩn mực sư phạm, tình cảm, xưng 'thầy' và gọi 'em'. 
                             - Nêu bật điểm tốt để khen ngợi. Nếu có vi phạm thì nhắc nhở khéo léo, mang tính xây dựng. 
                             - Câu cuối cùng là lời động viên tháng tới. 
                             - Chỉ trả về đoạn văn bản nhận xét, không cần chào hỏi hay giải thích thêm.
