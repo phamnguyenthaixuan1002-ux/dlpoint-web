@@ -7,3 +7,4 @@ fpdf2
 matplotlib
 Pillow
 streamlit-option-menu
+google-generativeai
