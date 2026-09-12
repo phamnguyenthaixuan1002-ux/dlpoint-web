@@ -853,3 +853,28 @@ def xoa_nhieu_danh_muc_su_kien_db(list_ids):
     except (psycopg2.Error, Exception) as e:
         print(f"Lỗi khi xóa nhiều danh mục: {e}")
         return 0
+# --- CÁC HÀM QUẢN LÝ XU THƯỞNG ---
+def cap_nhat_xu_thuong_db(hs_id, so_xu_thay_doi):
+    """Cộng (hoặc trừ) Xu thưởng vào ví của học sinh"""
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("UPDATE hoc_sinh SET xu_thuong = COALESCE(xu_thuong, 0) + %s WHERE id = %s", (so_xu_thay_doi, hs_id))
+                conn.commit()
+                return True
+    except (psycopg2.Error, Exception) as e:
+        print(f"Lỗi cập nhật Xu thưởng: {e}")
+        return False
+
+def lay_so_du_xu_db(hs_id):
+    """Lấy số dư Xu thưởng hiện tại của học sinh"""
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT COALESCE(xu_thuong, 0) FROM hoc_sinh WHERE id = %s", (hs_id,))
+                    result = cursor.fetchone()
+                    return result[0] if result else 0
+    except Exception:
+        return 0
