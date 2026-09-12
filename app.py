@@ -32,7 +32,16 @@ from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem, get_school_week_number, HO
 # Thêm hàm tạo PDF từ file cũ
 from pdf_report import generate_pdf_report  # <<< THÊM DÒNG NÀY
 from streamlit_option_menu import option_menu # Thư viện tạo Menu bo góc
+# BỘ NHỚ ĐỆM (CACHING) GIÚP APP CHẠY SIÊU NHANH TRÊN MOBILE
+# =========================================================
+@st.cache_data(ttl=600) # Tự động làm mới sau 10 phút
+def get_cached_students(role, aclass, agroup):
+    return lay_danh_sach_hoc_sinh_db(role, aclass, agroup)
 
+@st.cache_data(ttl=600)
+def get_cached_events():
+    return lay_tat_ca_danh_muc_su_kien_db()
+# =========================================================
 # --- CẤU HÌNH TRANG WEB ---
 # Lệnh này phải đặt ở đầu tiên
 st.set_page_config(page_title="DLPOINT Web", page_icon="🎓", layout="wide")
@@ -255,53 +264,51 @@ def show_class_management():
                         del st.session_state[f"ai_phan_hoi_{hs_id}"]
                 else:
                     st.error("Có lỗi xảy ra khi lưu vào CSDL.")
-# --- HÀM 8: GHI NHẬN NHANH (TỐI ƯU CHO BCS & GVCN) ---
+# --- HÀM 8: GHI NHẬN NHANH (TỐI ƯU MOBILE BẰNG GIAO DIỆN PILLS & CACHING) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
 
     user = st.session_state.user_info
     
-    # 1. Chuẩn bị dữ liệu Học sinh và Sự kiện
-    raw_students = lay_danh_sach_hoc_sinh_db(user['role'], user['class'], user['group'])
+    # 1. Dùng bộ nhớ đệm (Cache) để tải học sinh và sự kiện SIÊU NHANH
+    raw_students = get_cached_students(user['role'], user['class'], user['group'])
     if not raw_students:
         st.warning("Không có học sinh nào trong phạm vi quản lý.")
         return
 
     student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
     
-    all_events = lay_tat_ca_danh_muc_su_kien_db()
-    # Tạo dictionary cho sự kiện để hiển thị kèm điểm cho trực quan: "Tên sự kiện (+2đ)"
+    all_events = get_cached_events()
     event_dict = {}
     for ev in all_events:
-        # ev: (id, ten, loai, diem, muc_do)
         ten, loai, diem = ev[1], ev[2], ev[3]
         diem_str = f"+{diem}đ" if diem > 0 else f"{diem}đ"
-        label = f"[{loai}] {ten} ({diem_str})"
-        event_dict[label] = (ten, loai, diem) # Lưu lại giá trị gốc để ghi vào DB
+        # Thêm Icon 🟢/🔴 cho rực rỡ và dễ phân biệt
+        icon = "🟢" if loai == "Khen thưởng" else "🔴"
+        label = f"{icon} {ten} ({diem_str})"
+        event_dict[label] = (ten, loai, diem)
 
-    # Lựa chọn ngày chung cho cả 2 tab
     event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
 
-    # 2. Tạo 2 Tab cho 2 kịch bản nhập liệu
-    tab1, tab2 = st.tabs(["👥 Nhiều Học sinh -> Cùng 1 Lỗi/Khen", "👤 1 Học sinh -> Cùng lúc Nhiều Lỗi/Khen"])
+    # 2. Tạo 2 Tab 
+    tab1, tab2 = st.tabs(["👥 Cả nhóm cùng chung 1 Lỗi/Khen", "👤 1 Học sinh mắc nhiều Lỗi/Khen"])
 
     # ==========================================
     # KỊCH BẢN 1: 1 SỰ KIỆN ÁP DỤNG CHO NHIỀU HS
     # ==========================================
     with tab1:
-        st.info("💡 Dùng khi: Nguyên một nhóm mất trật tự, hoặc cả tổ đều mang đủ sách vở...")
-        col1_1, col1_2 = st.columns([1, 1])
+        st.info("💡 Chạm chọn 1 Sự kiện, sau đó chọn danh sách học sinh bên dưới.")
         
-        with col1_1:
-            selected_event_1 = st.selectbox("1. Chọn Sự kiện:", options=["-- Chọn --"] + list(event_dict.keys()), key="ev_tab1")
-        with col1_2:
-            selected_students_1 = st.multiselect("2. Chọn các Học sinh:", options=list(student_dict.keys()), key="hs_tab1")
+        # SỬ DỤNG GIAO DIỆN PILLS (CHẠM) THAY VÌ XỔ XUỐNG
+        selected_event_1 = st.pills("1. Chạm chọn 1 Sự kiện:", options=list(event_dict.keys()), selection_mode="single")
+        
+        selected_students_1 = st.multiselect("2. Chọn các Học sinh:", options=list(student_dict.keys()))
             
-        if st.button("🚀 Ghi nhận cho danh sách trên", type="primary", key="btn_tab1"):
-            if selected_event_1 != "-- Chọn --" and selected_students_1:
+        if st.button("🚀 Ghi nhận cho danh sách trên", type="primary", width="stretch", key="btn_tab1"):
+            if selected_event_1 and selected_students_1: # Kiểm tra xem đã chạm chọn chưa
                 ten_sk, loai_sk, diem_sk = event_dict[selected_event_1]
                 count = 0
                 for hs_name in selected_students_1:
@@ -310,8 +317,31 @@ def show_quick_record_page():
                         count += 1
                 st.success(f"✅ Đã ghi nhận **{ten_sk}** cho **{count}** học sinh thành công!")
             else:
-                st.error("Vui lòng chọn 1 sự kiện và ít nhất 1 học sinh.")
+                st.error("👆 Vui lòng chạm chọn 1 sự kiện ở trên và chọn ít nhất 1 học sinh.")
 
+    # ==========================================
+    # KỊCH BẢN 2: NHIỀU SỰ KIỆN CHO 1 HS
+    # ==========================================
+    with tab2:
+        st.info("💡 Chọn 1 Học sinh, sau đó chạm để chọn nhiều Sự kiện cùng lúc.")
+        selected_student_2 = st.selectbox("1. Chọn Học sinh:", options=["-- Chọn --"] + list(student_dict.keys()))
+        
+        # SỬ DỤNG GIAO DIỆN PILLS (CHỌN NHIỀU - MULTI)
+        selected_events_2 = st.pills("2. Chạm chọn các Sự kiện (được chọn nhiều):", options=list(event_dict.keys()), selection_mode="multi")
+
+        if st.button("🚀 Ghi nhận các sự kiện trên", type="primary", width="stretch", key="btn_tab2"):
+            if selected_student_2 != "-- Chọn --" and selected_events_2:
+                hs_id = student_dict[selected_student_2]
+                count = 0
+                for ev_label in selected_events_2:
+                    ten_sk, loai_sk, diem_sk = event_dict[ev_label]
+                    if them_su_kien_ren_luyen_db(hs_id, ten_sk, loai_sk, diem_sk, ngay_tao_str):
+                        count += 1
+                
+                hs_ten_ngan = selected_student_2.split("(")[0].strip()
+                st.success(f"✅ Đã ghi nhận **{count}** sự kiện cho học sinh **{hs_ten_ngan}** thành công!")
+            else:
+                st.error("👆 Vui lòng chọn 1 học sinh và chạm chọn ít nhất 1 sự kiện.")
     # ==========================================
     # KỊCH BẢN 2: NHIỀU SỰ KIỆN CHO 1 HS
     # ==========================================
