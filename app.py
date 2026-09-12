@@ -746,102 +746,59 @@ def show_summary_page():
                 st.download_button("📥 TẢI FILE EXCEL BÁO CÁO THÁNG", data=excel_data_m, file_name=f"TongKet_Thang_{month}_{year}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", width="stretch")
             os.unlink(filepath_m)
 
+    
     # ==========================================
-    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (Giữ nguyên như cũ)
     # ==========================================
-    with tab_pdf:
-        st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
-        
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month")
-        with col_p2:
-            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year")
-            
-        st.markdown("---")
-        export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"])
-        
-        all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
-        student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
-        
-        selected_student_ids = []
-        if export_scope == "Chọn học sinh cụ thể":
-            selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()))
-            selected_student_ids = [student_dict[name] for name in selected_names]
-        else:
-            selected_student_ids = [hs[0] for hs in all_students]
-            st.info(f"Sẽ xuất phiếu cho toàn bộ {len(selected_student_ids)} học sinh.")
-            
-        if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch"):
-            if not selected_student_ids: st.warning("Vui lòng chọn ít nhất một học sinh.")
-            else:
-                with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
-                    with tempfile.TemporaryDirectory() as tmpdirname:
-                        pdf_files = []
-                        success_count, fail_count = 0, 0
-                        for hs in all_students:
-                            if hs[0] in selected_student_ids:
-                                safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
-                                filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
-                                filepath = os.path.join(tmpdirname, filename)
-                                success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
-                                if success:
-                                    pdf_files.append((filename, filepath))
-                                    success_count += 1
-                                else: fail_count += 1
-                                    
-                        if success_count > 0:
-                            st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
-                            if len(pdf_files) == 1:
-                                with open(pdf_files[0][1], "rb") as f: pdf_data = f.read()
-                                st.download_button(f"📥 Tải xuống Phiếu: {pdf_files[0][0]}", data=pdf_data, file_name=pdf_files[0][0], mime="application/pdf", type="primary", width="stretch")
-                            else:
-                                zip_buffer = io.BytesIO()
-                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                                    for fname, fpath in pdf_files: zip_file.write(fpath, arcname=fname)
-                                st.download_button(f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc", data=zip_buffer.getvalue(), file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip", mime="application/zip", type="primary", width="stretch")
-                        else: st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
-    # ==========================================
-    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF
+    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (ĐÃ SỬA LỖI TRÙNG KEY)
     # ==========================================
     with tab_pdf:
         st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
         
         col_p1, col_p2 = st.columns(2)
         with col_p1:
-            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month")
+            # Đổi key thành pdf_month_v3
+            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month_v3")
         with col_p2:
-            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year")
+            # Đổi key thành pdf_year_v3
+            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year_v3")
             
         st.markdown("---")
-        export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"])
+        # Đổi key thành export_scope_v3
+        export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"], key="export_scope_v3")
         
+        # Lấy danh sách HS để chọn
         all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
         student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
         
         selected_student_ids = []
         if export_scope == "Chọn học sinh cụ thể":
-            selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()))
+            # Đổi key thành ms_export_hs_v3
+            selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()), key="ms_export_hs_v3")
             selected_student_ids = [student_dict[name] for name in selected_names]
         else:
             selected_student_ids = [hs[0] for hs in all_students]
             st.info(f"Sẽ xuất phiếu cho toàn bộ {len(selected_student_ids)} học sinh.")
             
-        if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch"):
+        # Đổi key thành btn_export_pdf_v3
+        if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch", key="btn_export_pdf_v3"):
             if not selected_student_ids:
                 st.warning("Vui lòng chọn ít nhất một học sinh.")
             else:
                 with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
+                    # Tạo thư mục tạm trên server để lưu PDF
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         pdf_files = []
                         success_count, fail_count = 0, 0
                         
+                        # Duyệt qua từng HS để tạo PDF
                         for hs in all_students:
                             if hs[0] in selected_student_ids:
+                                # Làm sạch tên file để tránh lỗi tiếng Việt có dấu
                                 safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
                                 filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
                                 filepath = os.path.join(tmpdirname, filename)
                                 
+                                # Gọi hàm tạo PDF từ code cũ
                                 success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
                                 if success:
                                     pdf_files.append((filename, filepath))
@@ -849,8 +806,11 @@ def show_summary_page():
                                 else:
                                     fail_count += 1
                                     
+                        # Xử lý sau khi tạo xong
                         if success_count > 0:
                             st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
+                            
+                            # Nếu chỉ xuất 1 người, cho tải thẳng file PDF
                             if len(pdf_files) == 1:
                                 with open(pdf_files[0][1], "rb") as f:
                                     pdf_data = f.read()
@@ -860,8 +820,10 @@ def show_summary_page():
                                     file_name=pdf_files[0][0],
                                     mime="application/pdf",
                                     type="primary",
-                                    width="stretch"
+                                    width="stretch",
+                                    key="btn_download_single_v3"
                                 )
+                            # Nếu xuất nhiều người, Nén Zip lại cho tiện
                             else:
                                 zip_buffer = io.BytesIO()
                                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -874,7 +836,8 @@ def show_summary_page():
                                     file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip",
                                     mime="application/zip",
                                     type="primary",
-                                    width="stretch"
+                                    width="stretch",
+                                    key="btn_download_zip_v3"
                                 )
                         else:
                             st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
