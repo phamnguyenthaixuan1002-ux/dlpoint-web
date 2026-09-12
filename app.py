@@ -195,7 +195,7 @@ def show_class_management():
                         try:
                             # 1. Cấu hình AI
                             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            model = genai.GenerativeModel('gemini-1.5-flash')
+                            model = genai.GenerativeModel('gemini-pro') # <<< Sửa thành 'gemini-pro'
                             
                             # 2. Lọc dữ liệu của tháng hiện tại
                             now = datetime.now()
