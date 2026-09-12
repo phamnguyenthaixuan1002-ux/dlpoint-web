@@ -228,9 +228,9 @@ def show_class_management():
                             - Chỉ trả về đoạn văn bản nhận xét, không cần chào hỏi hay giải thích thêm.
                             """
                             
-                            # 4. Gọi AI sinh kết quả (Dùng model gemini-2.5-flash thế hệ mới cực nhanh)
+                            # 4. Gọi AI sinh kết quả
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash',
+                                model='gemini-3.6-flash', # <<< Sửa thành 3.6
                                 contents=prompt
                             )
                             
