@@ -636,6 +636,66 @@ def show_statistics_page():
 
             st.markdown("---")
             st.write("📝 **Chi tiết Dữ liệu Vi phạm (Bảng thô)**")
+            # ==========================================
+            # MODULE 3: TRỢ LÝ AI PHÂN TÍCH LỚP HỌC
+            # ==========================================
+            st.markdown("---")
+            st.subheader("🤖 Trợ lý AI Phân tích Chiến lược Lớp học")
+            st.info("AI sẽ tổng hợp toàn bộ số liệu biểu đồ ở trên để viết ra một Báo cáo phân tích chuyên sâu, giúp GVCN nắm bắt gốc rễ vấn đề và có hướng giải quyết hiệu quả.")
+
+            if st.button("✨ Nhờ AI Phân tích Tình hình Lớp học", type="secondary", width="stretch", key="btn_ai_class"):
+                if "GEMINI_API_KEY" not in st.secrets:
+                    st.error("Chưa cấu hình API Key của Google Gemini trong Streamlit Secrets!")
+                else:
+                    with st.spinner("🤖 AI đang phân tích hàng trăm dòng dữ liệu và suy nghĩ chiến lược..."):
+                        try:
+                            from google import genai
+                            client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+
+                            # Lọc số liệu chuẩn bị đưa cho AI đọc
+                            so_vi_pham = len(df_vipham)
+                            df_khen = df_full[df_full['Loại'] == 'Khen thưởng']
+                            so_khen_thuong = len(df_khen)
+
+                            top_loi_str = ", ".join(df_vipham['Lỗi'].value_counts().head(3).index.tolist()) if so_vi_pham > 0 else "Không có lỗi nào"
+                            top_hs_vp_str = ", ".join(df_vipham['Họ Tên'].value_counts().head(3).index.tolist()) if so_vi_pham > 0 else "Không có học sinh vi phạm"
+                            top_hs_khen_str = ", ".join(df_khen['Họ Tên'].value_counts().head(3).index.tolist()) if so_khen_thuong > 0 else "Chưa có"
+
+                            # Ra lệnh cho AI (Prompt Engineering)
+                            prompt = f"""
+                            Bạn là một chuyên gia quản lý giáo dục và tư vấn tâm lý học đường cấp cao.
+                            Dưới đây là số liệu thống kê rèn luyện của lớp học trong khoảng thời gian vừa qua:
+                            - Tổng số lượt khen thưởng: {so_khen_thuong} lượt (Top học sinh xuất sắc: {top_hs_khen_str})
+                            - Tổng số lượt vi phạm: {so_vi_pham} lượt.
+                            - Các lỗi vi phạm phổ biến nhất của lớp: {top_loi_str}.
+                            - Những học sinh cá biệt vi phạm nhiều nhất cần chú ý: {top_hs_vp_str}.
+
+                            Dựa vào các số liệu thực tế trên, hãy viết một báo cáo tư vấn ngắn gọn (khoảng 150-200 chữ) cho Giáo viên chủ nhiệm bao gồm 3 phần:
+                            1. Đánh giá tổng quan về nề nếp của lớp.
+                            2. Phân tích nguyên nhân sâu xa của các lỗi phổ biến (dựa trên tâm lý học sinh).
+                            3. Đề xuất 2-3 biện pháp cụ thể, thiết thực và mang tính giáo dục tích cực (Không dùng đòn roi/chửi mắng) để GVCN chấn chỉnh lớp trong tháng tới.
+                            
+                            Văn phong: Chuyên nghiệp, tôn trọng, mang tính tư vấn, xưng là "Trợ lý AI DLPOINT".
+                            """
+
+                            # Gọi AI sinh kết quả
+                            response = client.models.generate_content(
+                                model='gemini-3.6-flash',
+                                contents=prompt
+                            )
+
+                            st.success("✅ Trợ lý AI đã phân tích xong!")
+                            
+                            # Hiển thị kết quả trong một khung xanh dương tuyệt đẹp
+                            st.markdown(f"""
+                            <div style='background-color: #f0f7ff; padding: 20px; border-radius: 10px; border-left: 5px solid #0078D7; font-size: 1.05em; line-height: 1.6; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);'>
+                                {response.text}
+                            </div>
+                            <br>
+                            """, unsafe_allow_html=True)
+
+                        except Exception as e:
+                            st.error(f"Lỗi khi gọi AI: {e}")
             df_vipham['Ngày'] = df_vipham['Ngày'].dt.strftime('%d/%m/%Y %H:%M')
             st.dataframe(df_vipham[['Ngày', 'Họ Tên', 'Lớp', 'Tổ', 'Lỗi', 'Điểm']], width="stretch", hide_index=True)
 # --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (NÂNG CẤP FULL GIAO DIỆN) ---
