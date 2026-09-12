@@ -893,16 +893,70 @@ def show_admin_page():
     # ==========================================
     # TAB 3: CÀI ĐẶT CHUNG
     # ==========================================
+    # ==========================================
+    # TAB 3: CÀI ĐẶT NĂM HỌC & KỲ NGHỈ LỄ
+    # ==========================================
     with tab_settings:
-        st.subheader("Cài đặt Ngày bắt đầu Năm học")
-        st.write("Ngày này được dùng để tính số thứ tự Tuần học trong các Báo cáo.")
+        st.subheader("1. Cài đặt Ngày bắt đầu Năm học")
+        st.write("Ngày này được dùng làm mốc (Tuần 1) để tính số thứ tự Tuần học trong các Báo cáo.")
         
         current_start = load_setting("school_year_start_date", "2025-09-08")
-        start_date = st.date_input("Ngày bắt đầu năm học (Ngày đầu tiên của Tuần 1):", datetime.strptime(current_start, "%Y-%m-%d").date())
+        start_date = st.date_input("Ngày bắt đầu năm học:", datetime.strptime(current_start, "%Y-%m-%d").date())
         
-        if st.button("💾 Lưu Cài đặt", type="primary"):
+        if st.button("💾 Lưu Ngày bắt đầu", type="primary", width="stretch", key="btn_save_start"):
             save_setting("school_year_start_date", start_date.strftime("%Y-%m-%d"))
             st.toast("Đã lưu ngày bắt đầu năm học thành công!", icon="✅")
+
+        st.markdown("---")
+        st.subheader("2. Quản lý Kỳ nghỉ (Lễ, Tết)")
+        st.write("Các khoảng thời gian này sẽ KHÔNG được tính vào số tuần học thực tế.")
+        st.info("💡 **Hướng dẫn:** Bấm vào lịch trong bảng để chọn ngày. Bấm dấu **[+]** ở góc dưới bảng để thêm kỳ nghỉ mới. Đánh dấu ô vuông bên trái dòng và bấm phím **Delete** (hoặc biểu tượng thùng rác) để xóa.")
+        
+        # Đọc dữ liệu kỳ nghỉ từ CSDL
+        import json
+        holidays_json = load_setting(HOLIDAY_SETTINGS_KEY, '[]')
+        try:
+            holidays_list = json.loads(holidays_json)
+            # Chuyển chuỗi thành định dạng ngày tháng để hiển thị lịch trên Web
+            for i in range(len(holidays_list)):
+                holidays_list[i][0] = datetime.strptime(holidays_list[i][0], "%Y-%m-%d").date()
+                holidays_list[i][1] = datetime.strptime(holidays_list[i][1], "%Y-%m-%d").date()
+            df_holidays = pd.DataFrame(holidays_list, columns=["Từ ngày", "Đến ngày"])
+        except:
+            df_holidays = pd.DataFrame(columns=["Từ ngày", "Đến ngày"])
+
+        # Bảng dữ liệu tương tác (Cho phép Thêm/Sửa/Xóa trực tiếp)
+        edited_holidays = st.data_editor(
+            df_holidays,
+            column_config={
+                "Từ ngày": st.column_config.DateColumn("Từ ngày", required=True, format="DD/MM/YYYY"),
+                "Đến ngày": st.column_config.DateColumn("Đến ngày", required=True, format="DD/MM/YYYY")
+            },
+            num_rows="dynamic", # Cho phép thêm/xóa dòng
+            use_container_width=True,
+            key="holiday_editor"
+        )
+        
+        if st.button("💾 Lưu Danh sách Kỳ nghỉ", type="primary", width="stretch", key="btn_save_holidays"):
+            valid_holidays = []
+            has_error = False
+            
+            # Kiểm tra và định dạng lại dữ liệu trước khi lưu
+            for index, row in edited_holidays.iterrows():
+                start_d = row["Từ ngày"]
+                end_d = row["Đến ngày"]
+                
+                if pd.notna(start_d) and pd.notna(end_d):
+                    if start_d > end_d:
+                        st.error(f"Lỗi ở dòng {index + 1}: Ngày bắt đầu ({start_d.strftime('%d/%m/%Y')}) không thể lớn hơn ngày kết thúc ({end_d.strftime('%d/%m/%Y')}).")
+                        has_error = True
+                        break
+                    # Lưu lại định dạng chuỗi YYYY-MM-DD vào CSDL
+                    valid_holidays.append([start_d.strftime('%Y-%m-%d'), end_d.strftime('%Y-%m-%d')])
+            
+            if not has_error:
+                save_setting(HOLIDAY_SETTINGS_KEY, json.dumps(valid_holidays))
+                st.success("✅ Đã lưu danh sách kỳ nghỉ thành công! Hệ thống sẽ tự động tính lại số Tuần trên toàn ứng dụng.")
      # TAB 4: QUẢN LÝ LỚP & HỌC SINH (NHẬP/XÓA HÀNG LOẠT)
     # ==========================================
     with tab_class:
