@@ -26,7 +26,8 @@ from database import (
     them_hoc_sinh_db, xoa_nhieu_hoc_sinh_db,
     them_su_kien_ren_luyen_db,
     cap_nhat_anh_the_db,             # <<< Đã có dấu phẩy ở đây
-    xoa_nhieu_danh_muc_su_kien_db    # Hàm mới thêm
+     xoa_nhieu_danh_muc_su_kien_db, # Của lần trước
+    cap_nhat_xu_thuong_db, lay_so_du_xu_db # <<< THÊM 2 HÀM NÀY
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
@@ -1322,8 +1323,9 @@ def show_main_dashboard():
         st.markdown("---")
         
         # 1. Thiết lập danh sách Menu và Icon (Sử dụng Bootstrap Icons)
-        options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quản lý Lớp học", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
-        icons = ["house", "trophy", "people", "calendar2-check", "lightning-charge"]
+       # <<< SỬA 2 DÒNG NÀY (Thêm "Quầy Đổi Thưởng" và icon "gift") >>>
+        options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quầy Đổi Thưởng", "Quản lý Lớp học", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
+        icons = ["house", "trophy", "gift", "people", "calendar2-check", "lightning-charge"]
         
         if role in ['gvcn', 'admin']:
             options.extend(["Ghi nhận Kỷ luật (TT19)", "Thống kê & Báo cáo", "Tổng kết & Xuất Excel"])
@@ -1478,6 +1480,9 @@ def show_main_dashboard():
     # ==========================================
     elif choice == "Bảng Vàng Thi Đua":
         show_leaderboard_page()
+     # <<< THÊM 2 DÒNG NÀY VÀO ĐÂY >>>
+    elif choice == "Quầy Đổi Thưởng":
+        show_reward_store_page()
     elif choice == "Quản lý Lớp học":
         show_class_management()
     elif choice == "Điểm danh hàng ngày":
@@ -1641,6 +1646,125 @@ def show_leaderboard_page():
             df_rest.insert(0, 'Hạng', range(4, 4 + len(df_rest)))
             df_rest.rename(columns={'ten': 'Họ Tên', 'lop': 'Lớp', 'diem': 'Điểm'}, inplace=True)
             st.dataframe(df_rest[['Hạng', 'Họ Tên', 'Lớp', 'Điểm']], hide_index=True, width="stretch")
+# --- HÀM 10: QUẦY ĐỔI THƯỞNG (GAMIFICATION) ---
+def show_reward_store_page():
+    st.header("🎁 Quầy Đổi Thưởng (Reward Store)")
+    st.markdown("---")
+
+    user = st.session_state.user_info
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    # Danh mục quà tặng (Thầy có thể sửa tên và giá ở đây)
+    REWARDS = {
+        "Miễn trực nhật vệ sinh 1 buổi": {"cost": 50, "icon": "🧹", "color": "#e0f7fa"},
+        "Được quyền đổi chỗ ngồi 1 tuần": {"cost": 100, "icon": "🪑", "color": "#f3e5f5"},
+        "Thẻ miễn truy bài miệng 1 lần": {"cost": 150, "icon": "🃏", "color": "#ffebee"},
+        "Một món quà nhỏ từ GVCN (Bút/Sổ)": {"cost": 200, "icon": "🎁", "color": "#fff8e1"}
+    }
+
+    tab_doiqua, tab_phatxu = st.tabs(["🛍️ Mua Quà / Đổi Thưởng", "💰 Phát Xu Thưởng (Cho GVCN)"])
+
+    # ==========================================
+    # TAB 1: ĐỔI QUÀ (HỌC SINH / BAN CÁN SỰ THAO TÁC)
+    # ==========================================
+    with tab_doiqua:
+        raw_students = get_cached_students(role, aclass, agroup)
+        if not raw_students: st.warning("Không có dữ liệu học sinh."); return
+        
+        student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
+        
+        st.subheader("1. Chọn Học sinh muốn đổi quà")
+        selected_student = st.selectbox("Học sinh:", ["-- Chọn --"] + list(student_dict.keys()))
+
+        if selected_student != "-- Chọn --":
+            hs_id = student_dict[selected_student]
+            so_du_hien_tai = lay_so_du_xu_db(hs_id)
+            hs_ten_ngan = selected_student.split("(")[0].strip()
+
+            # Hiển thị số dư với giao diện to, đẹp
+            st.markdown(f"""
+                <div style='text-align: center; padding: 20px; background-color: #f8f9fa; border-radius: 10px; border: 2px dashed #f1c40f;'>
+                    <h3 style='margin: 0; color: #555;'>Ví Xu của {hs_ten_ngan}</h3>
+                    <h1 style='margin: 0; color: #f39c12; font-size: 50px;'>🪙 {so_du_hien_tai} Xu</h1>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            st.write("<br>", unsafe_allow_html=True)
+            st.subheader("2. Chọn Món Quà")
+            
+            # Tạo các thẻ quà tặng
+            cols = st.columns(2)
+            for i, (reward_name, details) in enumerate(REWARDS.items()):
+                with cols[i % 2]:
+                    st.markdown(f"""
+                        <div style='background-color: {details['color']}; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ccc; height: 100%;'>
+                            <h1 style='margin:0;'>{details['icon']}</h1>
+                            <h5 style='margin:10px 0; color: #333;'>{reward_name}</h5>
+                            <h4 style='color: #d35400;'>Giá: 🪙 {details['cost']} Xu</h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Nút đổi thưởng
+                    if so_du_hien_tai >= details['cost']:
+                        if st.button(f"🛒 Đổi ngay ({details['cost']} Xu)", key=f"btn_buy_{i}", use_container_width=True):
+                            # 1. Trừ xu
+                            cap_nhat_xu_thuong_db(hs_id, -details['cost'])
+                            # 2. Ghi vào lịch sử rèn luyện để GVCN biết
+                            ngay_doi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            them_su_kien_ren_luyen_db(hs_id, f"🎁 Đã đổi quà: {reward_name} (-{details['cost']} Xu)", "Khen thưởng", 0, ngay_doi)
+                            
+                            st.success(f"🎉 Chúc mừng! {hs_ten_ngan} đã đổi thành công món quà: {reward_name}!")
+                            st.balloons()
+                            st.rerun() # Tải lại để cập nhật số dư
+                    else:
+                        st.button("🔒 Chưa đủ Xu", disabled=True, key=f"btn_dis_{i}", use_container_width=True)
+                        
+            st.write("<br><br>", unsafe_allow_html=True)
+
+    # ==========================================
+    # TAB 2: PHÁT XU THƯỞNG (GVCN THAO TÁC CUỐI TUẦN)
+    # ==========================================
+    with tab_phatxu:
+        if role not in ['gvcn', 'admin']:
+            st.error("Chức năng này chỉ dành cho Giáo viên chủ nhiệm.")
+            return
+            
+        st.info("Hàng tuần, sau khi xem Tổng kết, GVCN vào đây để thưởng Xu tự động cho các em đạt loại Tốt và Xuất sắc.")
+        
+        col_px1, col_px2 = st.columns([1, 2])
+        with col_px1:
+            week_num = st.number_input("Chọn tuần để quét:", min_value=1, max_value=52, value=1, step=1)
+            
+        st.markdown("Quy tắc thưởng: **Xuất sắc = +20 Xu** | **Tốt = +10 Xu**")
+        
+        if st.button("🔍 Quét kết quả & Phát Xu hàng loạt", type="primary"):
+            start_w, end_w = get_week_dates_by_number(week_num)
+            if not start_w: st.error("Lỗi ngày tháng."); return
+            
+            with st.spinner("Đang tính điểm xếp loại tuần..."):
+                all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+                
+                events_by_student = {}
+                for ev in all_events: events_by_student.setdefault(ev[0], []).append(ev)
+                
+                phat_xu_count = 0
+                for hs in raw_students:
+                    hs_id = hs[0]
+                    score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs_id, []))
+                    xep_loai = xep_loai_hanh_kiem(max(0, score))
+                    
+                    xu_thuong = 0
+                    if xep_loai == "Xuất sắc": xu_thuong = 20
+                    elif xep_loai == "Tốt": xu_thuong = 10
+                    
+                    if xu_thuong > 0:
+                        cap_nhat_xu_thuong_db(hs_id, xu_thuong)
+                        # Ghi nhận vào lịch sử
+                        ngay_tao = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        them_su_kien_ren_luyen_db(hs_id, f"🪙 Thưởng Xu Tuần {week_num} (Xếp loại {xep_loai})", "Khen thưởng", 0, ngay_tao)
+                        phat_xu_count += 1
+                        
+            st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
