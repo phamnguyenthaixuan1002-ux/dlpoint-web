@@ -477,69 +477,153 @@ def show_discipline_page():
                         st.error(f"Lỗi: {msg}")
         else:
             st.write("👈 Vui lòng chọn học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
-# --- HÀM 5: THỐNG KÊ & BÁO CÁO ---
+# --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG ĐỎ) ---
 def show_statistics_page():
-    st.header("📊 Thống kê & Báo cáo Rèn luyện")
+    st.header("📊 Phân tích & Cảnh báo Rèn luyện")
     st.markdown("---")
 
-    # 1. Bộ lọc thời gian (Nằm ngang cho đẹp)
+    user = st.session_state.user_info
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    # ==========================================
+    # MODULE 1: HỆ THỐNG BÁO ĐỘNG ĐỎ (EARLY WARNING)
+    # ==========================================
+    st.subheader("🚨 Hệ thống Cảnh báo Sớm (30 ngày qua)")
+    st.write("Hệ thống tự động rà soát dữ liệu 30 ngày gần nhất để phát hiện các học sinh cần GVCN can thiệp khẩn cấp.")
+    
+    today = date.today()
+    start_30d = today - timedelta(days=30)
+    
+    with st.spinner("Đang quét dữ liệu rèn luyện để tìm rủi ro..."):
+        # Lấy dữ liệu
+        events_30d = lay_su_kien_trong_khoang_ngay_db(start_30d.strftime('%Y-%m-%d'), (today + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+        hs_list = get_cached_students(role, aclass, agroup)
+        all_categories = get_cached_events()
+        
+        # Tạo từ điển map Mức độ vi phạm {Tên lỗi: Mức độ (1,2,3)}
+        muc_do_map = {cat[1]: cat[4] for cat in all_categories if cat[4] is not None}
+        
+        warnings = []
+        
+        if hs_list and events_30d:
+            # Gom nhóm sự kiện theo từng học sinh
+            ev_by_hs = {}
+            for ev in events_30d:
+                ev_by_hs.setdefault(ev[0], []).append(ev)
+                
+            for hs in hs_list:
+                hs_id, hs_ten, hs_lop = hs[0], hs[1], hs[2]
+                my_events = ev_by_hs.get(hs_id, [])
+                
+                if not my_events: continue
+                    
+                # 1. Cảnh báo Điểm rèn luyện thấp (Dưới 70)
+                score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
+                if score < 70:
+                    warnings.append({
+                        'hs': hs_ten, 'lop': hs_lop, 'icon': '📉', 'color': '#e74c3c', # Màu Đỏ
+                        'title': 'Điểm rèn luyện rớt xuống mức Báo động', 
+                        'detail': f'Điểm hiện tại: {score}/100'
+                    })
+                    
+                # 2. Cảnh báo Chuyên cần (Vắng Không Phép >= 2 hoặc Trễ >= 3)
+                vang_kp = sum(1 for e in my_events if "Vắng không phép" in e[4])
+                di_tre = sum(1 for e in my_events if "Đi trễ" in e[4])
+                if vang_kp >= 2 or di_tre >= 3:
+                    msg = []
+                    if vang_kp > 0: msg.append(f"Vắng K.Phép: {vang_kp} lần")
+                    if di_tre > 0: msg.append(f"Đi trễ: {di_tre} lần")
+                    warnings.append({
+                        'hs': hs_ten, 'lop': hs_lop, 'icon': '⚠️', 'color': '#f39c12', # Màu Cam
+                        'title': 'Nguy cơ chểnh mảng / Bỏ học', 
+                        'detail': " | ".join(msg)
+                    })
+                    
+                # 3. Cảnh báo Vi phạm Nghiêm trọng (Mức 2, Mức 3 theo TT19)
+                loi_nghiem_trong = set()
+                for e in my_events:
+                    mo_ta = e[4]
+                    # Quét xem mô tả có chứa tên lỗi Mức 2, Mức 3 không
+                    for cat_name, m_do in muc_do_map.items():
+                        if cat_name in mo_ta and m_do >= 2:
+                            loi_nghiem_trong.add(f"{cat_name} (Mức {m_do})")
+                            
+                if loi_nghiem_trong:
+                    warnings.append({
+                        'hs': hs_ten, 'lop': hs_lop, 'icon': '🚫', 'color': '#8e44ad', # Màu Tím
+                        'title': 'Hành vi vi phạm nghiêm trọng', 
+                        'detail': ", ".join(list(loi_nghiem_trong))
+                    })
+
+        # --- HIỂN THỊ GIAO DIỆN CẢNH BÁO ---
+        if not warnings:
+            st.success("✨ Tình hình ổn định. Không phát hiện học sinh nào có rủi ro cao trong 30 ngày qua.")
+        else:
+            st.error(f"Phát hiện **{len(warnings)}** rủi ro cần GVCN lưu tâm và can thiệp sớm:")
+            
+            # Hiển thị các thẻ cảnh báo thành 3 cột
+            cols = st.columns(3)
+            for i, w in enumerate(warnings):
+                with cols[i % 3]:
+                    # Vẽ thẻ Card bằng HTML/CSS để có đường viền màu tương ứng với loại cảnh báo
+                    st.markdown(f"""
+                    <div style='background-color: #ffffff; border-left: 5px solid {w['color']}; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px;'>
+                        <h4 style='margin-top: 0; color: {w['color']}; font-size: 1.1em;'>{w['icon']} {w['hs']}</h4>
+                        <p style='margin: 0; font-size: 0.9em; color: gray;'>Lớp: {w['lop']}</p>
+                        <p style='margin: 8px 0 0 0; font-weight: bold; color: #333;'>{w['title']}</p>
+                        <p style='margin: 0; font-size: 0.9em; color: #d63031;'>{w['detail']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+
+    # ==========================================
+    # MODULE 2: BÁO CÁO DỮ LIỆU TỔNG HỢP (BIỂU ĐỒ)
+    # ==========================================
+    st.subheader("📊 Báo cáo Dữ liệu Tổng hợp")
+    
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        # Mặc định lấy lùi lại 30 ngày từ hôm nay
         start_date = st.date_input("Từ ngày:", date.today() - timedelta(days=30), format="DD/MM/YYYY")
     with col2:
         end_date = st.date_input("Đến ngày:", date.today(), format="DD/MM/YYYY")
     with col3:
-        st.write("") # Tạo khoảng trống cho nút bấm ngang hàng
+        st.write("") 
         st.write("")
-        btn_thong_ke = st.button("Lấy dữ liệu Thống kê", type="primary", width="stretch")
+        btn_thong_ke = st.button("Lấy dữ liệu Biểu đồ", type="primary", width="stretch")
 
-    st.markdown("---")
-
-    # 2. Xử lý và Vẽ biểu đồ khi bấm nút
     if btn_thong_ke:
         if start_date > end_date:
             st.error("Ngày bắt đầu không được lớn hơn ngày kết thúc!")
             return
             
         with st.spinner('Đang tổng hợp dữ liệu...'):
-            # Gọi hàm CSDL trả về Pandas DataFrame (Giống hệt app cũ)
             df = lay_su_kien_cho_thong_ke_df(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
             
             if df.empty:
                 st.warning("Không có dữ liệu rèn luyện nào trong khoảng thời gian này.")
                 return
 
-            # Lọc ra chỉ các sự kiện "Vi phạm"
             df_vipham = df[df['loai_su_kien'] == 'Vi phạm']
 
             if df_vipham.empty:
                 st.success("Tuyệt vời! Không có vi phạm nào trong khoảng thời gian này.")
                 return
 
-            # --- VẼ BIỂU ĐỒ (Sức mạnh của Streamlit) ---
-            
-            # Khung chứa 2 biểu đồ nằm cạnh nhau
             chart_col1, chart_col2 = st.columns(2)
             
             with chart_col1:
-                st.subheader("1. Tổng Vi phạm theo Lớp")
-                # Đếm số vi phạm theo lớp
+                st.write("**1. Tổng Vi phạm theo Lớp**")
                 vp_theo_lop = df_vipham['lop'].value_counts()
-                # Vẽ biểu đồ cột trực tiếp từ Pandas Series chỉ với 1 dòng lệnh
                 st.bar_chart(vp_theo_lop, color="#ff4b4b") 
 
             with chart_col2:
-                st.subheader("2. Top Lỗi Vi phạm phổ biến")
-                # Đếm số lượng theo tên mô tả lỗi (Top 10)
+                st.write("**2. Top Lỗi Vi phạm phổ biến**")
                 top_loi = df_vipham['mo_ta'].value_counts().head(10)
                 st.bar_chart(top_loi, color="#ffa600")
 
-            # Bảng chi tiết ở dưới cùng
-            st.subheader("3. Chi tiết các dữ liệu vi phạm")
-            # Hiển thị bảng có thể lọc, tìm kiếm
+            st.write("**3. Chi tiết các dữ liệu vi phạm**")
             st.dataframe(df_vipham[['lop', 'to_nhiem_vu', 'mo_ta', 'diem_ap_dung', 'ngay_tao']], width="stretch")
-# --- HÀM 6: TỔNG KẾT & XUẤT EXCEL ---
 # --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (NÂNG CẤP FULL GIAO DIỆN) ---
 def show_summary_page():
     st.header("📑 Báo cáo Tổng kết Toàn diện")
