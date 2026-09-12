@@ -477,7 +477,7 @@ def show_discipline_page():
                         st.error(f"Lỗi: {msg}")
         else:
             st.write("👈 Vui lòng chọn học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
-# --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG ĐỎ) ---
+# --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG & BẢN ĐỒ HÀNH VI) ---
 def show_statistics_page():
     st.header("📊 Phân tích & Cảnh báo Rèn luyện")
     st.markdown("---")
@@ -495,18 +495,14 @@ def show_statistics_page():
     start_30d = today - timedelta(days=30)
     
     with st.spinner("Đang quét dữ liệu rèn luyện để tìm rủi ro..."):
-        # Lấy dữ liệu
         events_30d = lay_su_kien_trong_khoang_ngay_db(start_30d.strftime('%Y-%m-%d'), (today + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
         hs_list = get_cached_students(role, aclass, agroup)
         all_categories = get_cached_events()
         
-        # Tạo từ điển map Mức độ vi phạm {Tên lỗi: Mức độ (1,2,3)}
         muc_do_map = {cat[1]: cat[4] for cat in all_categories if cat[4] is not None}
-        
         warnings = []
         
         if hs_list and events_30d:
-            # Gom nhóm sự kiện theo từng học sinh
             ev_by_hs = {}
             for ev in events_30d:
                 ev_by_hs.setdefault(ev[0], []).append(ev)
@@ -520,11 +516,7 @@ def show_statistics_page():
                 # 1. Cảnh báo Điểm rèn luyện thấp (Dưới 70)
                 score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
                 if score < 70:
-                    warnings.append({
-                        'hs': hs_ten, 'lop': hs_lop, 'icon': '📉', 'color': '#e74c3c', # Màu Đỏ
-                        'title': 'Điểm rèn luyện rớt xuống mức Báo động', 
-                        'detail': f'Điểm hiện tại: {score}/100'
-                    })
+                    warnings.append({'hs': hs_ten, 'lop': hs_lop, 'icon': '📉', 'color': '#e74c3c', 'title': 'Điểm rèn luyện rớt xuống mức Báo động', 'detail': f'Điểm hiện tại: {score}/100'})
                     
                 # 2. Cảnh báo Chuyên cần (Vắng Không Phép >= 2 hoặc Trễ >= 3)
                 vang_kp = sum(1 for e in my_events if "Vắng không phép" in e[4])
@@ -533,39 +525,26 @@ def show_statistics_page():
                     msg = []
                     if vang_kp > 0: msg.append(f"Vắng K.Phép: {vang_kp} lần")
                     if di_tre > 0: msg.append(f"Đi trễ: {di_tre} lần")
-                    warnings.append({
-                        'hs': hs_ten, 'lop': hs_lop, 'icon': '⚠️', 'color': '#f39c12', # Màu Cam
-                        'title': 'Nguy cơ chểnh mảng / Bỏ học', 
-                        'detail': " | ".join(msg)
-                    })
+                    warnings.append({'hs': hs_ten, 'lop': hs_lop, 'icon': '⚠️', 'color': '#f39c12', 'title': 'Nguy cơ chểnh mảng / Bỏ học', 'detail': " | ".join(msg)})
                     
                 # 3. Cảnh báo Vi phạm Nghiêm trọng (Mức 2, Mức 3 theo TT19)
                 loi_nghiem_trong = set()
                 for e in my_events:
                     mo_ta = e[4]
-                    # Quét xem mô tả có chứa tên lỗi Mức 2, Mức 3 không
                     for cat_name, m_do in muc_do_map.items():
                         if cat_name in mo_ta and m_do >= 2:
                             loi_nghiem_trong.add(f"{cat_name} (Mức {m_do})")
                             
                 if loi_nghiem_trong:
-                    warnings.append({
-                        'hs': hs_ten, 'lop': hs_lop, 'icon': '🚫', 'color': '#8e44ad', # Màu Tím
-                        'title': 'Hành vi vi phạm nghiêm trọng', 
-                        'detail': ", ".join(list(loi_nghiem_trong))
-                    })
+                    warnings.append({'hs': hs_ten, 'lop': hs_lop, 'icon': '🚫', 'color': '#8e44ad', 'title': 'Hành vi vi phạm nghiêm trọng', 'detail': ", ".join(list(loi_nghiem_trong))})
 
-        # --- HIỂN THỊ GIAO DIỆN CẢNH BÁO ---
         if not warnings:
             st.success("✨ Tình hình ổn định. Không phát hiện học sinh nào có rủi ro cao trong 30 ngày qua.")
         else:
             st.error(f"Phát hiện **{len(warnings)}** rủi ro cần GVCN lưu tâm và can thiệp sớm:")
-            
-            # Hiển thị các thẻ cảnh báo thành 3 cột
             cols = st.columns(3)
             for i, w in enumerate(warnings):
                 with cols[i % 3]:
-                    # Vẽ thẻ Card bằng HTML/CSS để có đường viền màu tương ứng với loại cảnh báo
                     st.markdown(f"""
                     <div style='background-color: #ffffff; border-left: 5px solid {w['color']}; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px;'>
                         <h4 style='margin-top: 0; color: {w['color']}; font-size: 1.1em;'>{w['icon']} {w['hs']}</h4>
@@ -578,9 +557,9 @@ def show_statistics_page():
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
     # ==========================================
-    # MODULE 2: BÁO CÁO DỮ LIỆU TỔNG HỢP (BIỂU ĐỒ)
+    # MODULE 2: BẢN ĐỒ HÀNH VI LỚP HỌC (BEHAVIOR HEATMAP)
     # ==========================================
-    st.subheader("📊 Báo cáo Dữ liệu Tổng hợp")
+    st.subheader("🗺️ Bản đồ Hành vi & Dữ liệu Tổng hợp")
     
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -590,40 +569,75 @@ def show_statistics_page():
     with col3:
         st.write("") 
         st.write("")
-        btn_thong_ke = st.button("Lấy dữ liệu Biểu đồ", type="primary", width="stretch")
+        btn_thong_ke = st.button("📊 Chạy Phân tích Dữ liệu", type="primary", width="stretch")
 
-    if btn_thong_ke:
+    if btn_thong_ke or st.session_state.get('show_stats', False):
+        st.session_state.show_stats = True
         if start_date > end_date:
             st.error("Ngày bắt đầu không được lớn hơn ngày kết thúc!")
             return
             
-        with st.spinner('Đang tổng hợp dữ liệu...'):
+        with st.spinner('Đang dùng AI nội bộ phân tích dữ liệu...'):
             df = lay_su_kien_cho_thong_ke_df(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
             
             if df.empty:
                 st.warning("Không có dữ liệu rèn luyện nào trong khoảng thời gian này.")
                 return
 
-            df_vipham = df[df['loai_su_kien'] == 'Vi phạm']
+            # Thêm thông tin Tên học sinh vào df để phân tích
+            raw_events = lay_su_kien_trong_khoang_ngay_db(start_date.strftime('%Y-%m-%d'), (end_date + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+            df_full = pd.DataFrame(raw_events, columns=["ID", "Họ Tên", "Lớp", "Tổ", "Lỗi", "Loại", "Điểm", "Ngày"])
+            
+            df_vipham = df_full[df_full['Loại'] == 'Vi phạm'].copy()
 
             if df_vipham.empty:
                 st.success("Tuyệt vời! Không có vi phạm nào trong khoảng thời gian này.")
                 return
 
-            chart_col1, chart_col2 = st.columns(2)
+            # --- TẠO CÁC BIỂU ĐỒ PHÂN TÍCH SÂU ---
+            st.markdown("---")
+            row1_col1, row1_col2 = st.columns(2, gap="large")
             
-            with chart_col1:
-                st.write("**1. Tổng Vi phạm theo Lớp**")
-                vp_theo_lop = df_vipham['lop'].value_counts()
-                st.bar_chart(vp_theo_lop, color="#ff4b4b") 
+            with row1_col1:
+                st.write("🔥 **Top 5 Học sinh vi phạm nhiều nhất**")
+                # Đếm số lỗi theo học sinh
+                top_hs = df_vipham['Họ Tên'].value_counts().head(5)
+                # Vẽ biểu đồ ngang cho dễ đọc tên
+                st.bar_chart(top_hs, color="#e74c3c")
+                
+            with row1_col2:
+                st.write("📅 **Chu kỳ vi phạm theo Thứ trong tuần**")
+                # Trích xuất "Thứ" từ Ngày
+                df_vipham['Ngày'] = pd.to_datetime(df_vipham['Ngày'])
+                df_vipham['Thứ_Index'] = df_vipham['Ngày'].dt.dayofweek
+                thu_map = {0: 'Thứ 2', 1: 'Thứ 3', 2: 'Thứ 4', 3: 'Thứ 5', 4: 'Thứ 6', 5: 'Thứ 7', 6: 'Chủ Nhật'}
+                df_vipham['Thứ'] = df_vipham['Thứ_Index'].map(thu_map)
+                
+                # Sắp xếp đúng thứ tự từ Thứ 2 đến Chủ Nhật
+                days_order = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật']
+                vp_theo_thu = df_vipham['Thứ'].value_counts().reindex(days_order).fillna(0)
+                st.bar_chart(vp_theo_thu, color="#f39c12")
+                
+            st.write("<br>", unsafe_allow_html=True)
+            row2_col1, row2_col2 = st.columns(2, gap="large")
 
-            with chart_col2:
-                st.write("**2. Top Lỗi Vi phạm phổ biến**")
-                top_loi = df_vipham['mo_ta'].value_counts().head(10)
-                st.bar_chart(top_loi, color="#ffa600")
+            with row2_col1:
+                st.write("📌 **Top Lỗi Vi phạm phổ biến nhất**")
+                top_loi = df_vipham['Lỗi'].value_counts().head(8)
+                st.bar_chart(top_loi, color="#8e44ad")
 
-            st.write("**3. Chi tiết các dữ liệu vi phạm**")
-            st.dataframe(df_vipham[['lop', 'to_nhiem_vu', 'mo_ta', 'diem_ap_dung', 'ngay_tao']], width="stretch")
+            with row2_col2:
+                st.write("🏫 **Phân bổ Vi phạm theo Tổ/Lớp**")
+                if role == 'admin':
+                    vp_theo_vung = df_vipham['Lớp'].value_counts()
+                else:
+                    vp_theo_vung = df_vipham['Tổ'].fillna("Không rõ").value_counts()
+                st.bar_chart(vp_theo_vung, color="#3498db")
+
+            st.markdown("---")
+            st.write("📝 **Chi tiết Dữ liệu Vi phạm (Bảng thô)**")
+            df_vipham['Ngày'] = df_vipham['Ngày'].dt.strftime('%d/%m/%Y %H:%M')
+            st.dataframe(df_vipham[['Ngày', 'Họ Tên', 'Lớp', 'Tổ', 'Lỗi', 'Điểm']], width="stretch", hide_index=True)
 # --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (NÂNG CẤP FULL GIAO DIỆN) ---
 def show_summary_page():
     st.header("📑 Báo cáo Tổng kết Toàn diện")
