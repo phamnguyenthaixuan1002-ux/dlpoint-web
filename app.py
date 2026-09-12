@@ -140,6 +140,7 @@ def show_login_page():
 # --- HÀM 3: QUẢN LÝ LỚP HỌC ---
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
+# --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 (GIAO DIỆN TƯƠNG TÁC MỚI) ---
 def show_class_management():
     st.header("👨‍🎓 Quản lý Lớp học & Hồ sơ 360°")
     st.markdown("---")
@@ -151,178 +152,156 @@ def show_class_management():
         st.info("Chưa có dữ liệu học sinh nào trong phạm vi quản lý của thầy/cô.")
         return
 
-    with st.expander("📋 Click để xem danh sách tổng quát của lớp", expanded=False):
-        df = pd.DataFrame(raw_data, columns=["ID", "Họ và Tên", "Lớp", "Tổ", "SĐT Học sinh", "SĐT Zalo", "Ảnh thẻ"])
-        df.insert(0, 'STT', range(1, 1 + len(df)))
-        st.dataframe(df[['STT', 'Họ và Tên', 'Lớp', 'Tổ', 'SĐT Học sinh', "SĐT Zalo"]], width="stretch", hide_index=True)
+    # Chuẩn bị dữ liệu bảng
+    df = pd.DataFrame(raw_data, columns=["ID", "Họ và Tên", "Lớp", "Tổ", "SĐT Học sinh", "SĐT Zalo", "Ảnh thẻ"])
+    df.insert(0, 'STT', range(1, 1 + len(df)))
 
-    st.subheader("🔍 Tra cứu Hồ sơ 360°")
-    
-    student_dict = {f"{hs[1]} (Lớp {hs[2]})": hs[0] for hs in raw_data}
-    selected_student_name = st.selectbox("Chọn học sinh để xem hồ sơ chi tiết:", options=["-- Hãy chọn một học sinh --"] + list(student_dict.keys()))
+    # Chia layout: Danh sách (trái) - Chi tiết (phải). Trên điện thoại nó sẽ tự xếp dọc.
+    col_list, col_detail = st.columns([1.2, 2], gap="large")
 
-    if selected_student_name != "-- Hãy chọn một học sinh --":
-        hs_id = student_dict[selected_student_name]
+    # ==========================================
+    # KHU VỰC 1: DANH SÁCH HỌC SINH (LUÔN HIỂN THỊ)
+    # ==========================================
+    with col_list:
+        st.write("👇 **Bấm vào 1 dòng để xem hồ sơ:**")
         
-        student_info_tuple = lay_thong_tin_day_du_hoc_sinh_db(student_id=hs_id)
-        if not student_info_tuple: return
-            
-        info = dict(zip(["id"] + STUDENT_FIELDS_DB, student_info_tuple))
+        # Tạo bảng tương tác (Bấm vào dòng nào, Streamlit tự nhận diện dòng đó)
+        selection = st.dataframe(
+            df[['ID', 'STT', 'Họ và Tên', 'Tổ']], 
+            hide_index=True,
+            use_container_width=True,
+            height=500, # Giới hạn chiều cao để có thanh cuộn, không làm trang web quá dài
+            column_config={
+                "ID": None, # Ẩn cột ID đi cho đẹp, nhưng vẫn giữ để truy vấn
+                "STT": st.column_config.NumberColumn(width="small"),
+                "Tổ": st.column_config.TextColumn(width="small")
+            },
+            selection_mode="single-row", # Chỉ cho phép chọn 1 dòng
+            on_select="rerun" # Tự động chạy lại app khi bấm chọn
+        )
 
-        tab_tong_quan, tab_lich_su, tab_muc_tieu = st.tabs(["📝 Tổng quan & Biểu đồ", "📜 Lịch sử Rèn luyện", "🎯 Mục tiêu & Phản hồi"])
-
-        # === TAB 1: TỔNG QUAN CÓ UPLOAD ẢNH THẺ ===
-        with tab_tong_quan:
-            col_img, col_info, col_chart = st.columns([1, 1.5, 2], gap="medium")
+    # ==========================================
+    # KHU VỰC 2: HỒ SƠ 360 ĐỘ CỦA HS ĐƯỢC CHỌN
+    # ==========================================
+    with col_detail:
+        # Kiểm tra xem thầy có đang bấm chọn dòng nào trong bảng không
+        selected_rows = selection.selection.rows
+        
+        if len(selected_rows) == 0:
+            # Giao diện chờ khi chưa chọn ai
+            st.info("👈 Vui lòng bấm chọn một học sinh từ danh sách bên trái để xem Hồ sơ 360°.")
+            st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=150) # Ảnh minh họa vui vẻ
+        else:
+            # Lấy ID của học sinh đang được bấm chọn
+            selected_index = selected_rows[0]
+            hs_id = int(df.iloc[selected_index]['ID'])
             
-            # --- CỘT 1: ẢNH THẺ ---
-            with col_img:
-                if not os.path.exists('student_photos'):
-                    os.makedirs('student_photos')
+            # --- CODE TẢI HỒ SƠ (GIỮ NGUYÊN NHƯ CŨ) ---
+            student_info_tuple = lay_thong_tin_day_du_hoc_sinh_db(student_id=hs_id)
+            if not student_info_tuple: return
+                
+            info = dict(zip(["id"] + STUDENT_FIELDS_DB, student_info_tuple))
+
+            tab_tong_quan, tab_lich_su, tab_muc_tieu = st.tabs(["📝 Tổng quan & Biểu đồ", "📜 Lịch sử Rèn luyện", "🎯 Mục tiêu & Phản hồi"])
+
+            # === TAB 1: TỔNG QUAN ===
+            with tab_tong_quan:
+                col_img, col_info = st.columns([1, 2], gap="medium")
+                
+                with col_img:
+                    import os
+                    if not os.path.exists('student_photos'): os.makedirs('student_photos')
+                    anh_path = info.get('anh_the_path')
+                    full_img_path = os.path.join('student_photos', anh_path) if anh_path else ""
                     
-                anh_path = info.get('anh_the_path')
-                full_img_path = os.path.join('student_photos', anh_path) if anh_path else ""
+                    if anh_path and os.path.exists(full_img_path):
+                        st.image(full_img_path, width=130)
+                    else:
+                        st.image("https://cdn-icons-png.flaticon.com/512/149/149071.png", width=130)
+                    
+                    uploaded_file = st.file_uploader("Đổi ảnh", type=['jpg', 'jpeg', 'png'], key=f"up_{hs_id}", label_visibility="collapsed")
+                    if uploaded_file is not None:
+                        if st.button("Lưu ảnh", type="primary", key=f"btn_{hs_id}", width="stretch"):
+                            ext = uploaded_file.name.split('.')[-1]
+                            new_filename = f"hs_{hs_id}.{ext}"
+                            with open(os.path.join('student_photos', new_filename), "wb") as f:
+                                f.write(uploaded_file.getbuffer())
+                            if cap_nhat_anh_the_db(hs_id, new_filename):
+                                st.toast("Cập nhật ảnh thành công!", icon="✅")
+                                st.rerun()
                 
-                # Hiển thị ảnh hiện tại
-                if anh_path and os.path.exists(full_img_path):
-                    st.image(full_img_path, width=150)
-                else:
-                    # Ảnh mặc định nếu chưa có
-                    st.image("https://cdn-icons-png.flaticon.com/512/149/149071.png", width=150)
-                
-                # Tính năng Upload ảnh
-                uploaded_file = st.file_uploader("Cập nhật ảnh (JPG/PNG)", type=['jpg', 'jpeg', 'png'], key=f"up_{hs_id}")
-                if uploaded_file is not None:
-                    if st.button("💾 Lưu ảnh", type="primary", key=f"btn_{hs_id}", width="stretch"):
-                        ext = uploaded_file.name.split('.')[-1]
-                        new_filename = f"hs_{hs_id}.{ext}"
-                        filepath = os.path.join('student_photos', new_filename)
-                        
-                        # Ghi file ảnh vào hệ thống
-                        with open(filepath, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-                        
-                        # Lưu tên file vào CSDL
-                        if cap_nhat_anh_the_db(hs_id, new_filename):
-                            st.toast("Đã cập nhật ảnh thành công!", icon="✅")
-                            st.rerun() # Tải lại trang để hiện ảnh mới
-            
-            # --- CỘT 2: THÔNG TIN ---
-            with col_info:
-                st.markdown(f"### {info.get('ten', 'Chưa cập nhật')}")
-                st.write(f"**Lớp:** {info.get('lop', '')} | **Tổ:** {info.get('to_nhiem_vu', '')}")
-                st.write(f"**Ngày sinh:** {info.get('ngay_sinh', '')}")
-                st.write(f"**SĐT Học sinh:** {info.get('sdt_hoc_sinh', 'Không có')}")
-                st.write(f"**Phụ huynh:** {info.get('ten_cha', '')} / {info.get('ten_me', '')}")
-                st.write(f"**SĐT Phụ huynh:** {info.get('sdt_cha', '')} / {info.get('sdt_me', '')}")
-                
-            # --- CỘT 3: BIỂU ĐỒ ---
-            with col_chart:
+                with col_info:
+                    st.markdown(f"#### {info.get('ten', '')}")
+                    st.write(f"**Lớp:** {info.get('lop', '')} | **Tổ:** {info.get('to_nhiem_vu', '')}")
+                    st.write(f"**Ngày sinh:** {info.get('ngay_sinh', '')}")
+                    st.write(f"**Phụ huynh:** {info.get('ten_cha', '')} / {info.get('ten_me', '')}")
+                    st.write(f"**SĐT LH:** {info.get('sdt_cha', '')} / {info.get('sdt_me', '')}")
+                    
+                st.markdown("---")
                 st.write("**📈 Xu hướng rèn luyện (4 tuần)**")
                 chart_data = lay_du_lieu_bieu_do_ca_nhan(hs_id, num_weeks=4)
                 if chart_data:
                     weeks = [f"Tuần {int(d[0])}" for d in chart_data]
                     scores = [DIEM_KHOI_DAU + d[1] for d in chart_data]
-                    df_chart = pd.DataFrame({"Tổng điểm": scores}, index=weeks)
-                    st.line_chart(df_chart, color="#0078D7")
+                    st.line_chart(pd.DataFrame({"Tổng điểm": scores}, index=weeks), color="#0078D7")
                 else:
                     st.info("Chưa có dữ liệu rèn luyện.")
 
-        # === TAB LỊCH SỬ VÀ TAB MỤC TIÊU GIỮ NGUYÊN ===
-        with tab_lich_su:
-            st.write("**Lịch sử Kỷ luật (Theo TT19)**")
-            history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
-            if history_kl:
-                df_kl = pd.DataFrame(history_kl, columns=["ID", "Hình thức", "Ngày áp dụng", "Ghi chú"])
-                st.dataframe(df_kl[["Ngày áp dụng", "Hình thức", "Ghi chú"]], width="stretch", hide_index=True)
-            else:
-                st.success("Học sinh chưa bị áp dụng hình thức kỷ luật nào.")
-            
-            st.write("**Chi tiết các Sự kiện Rèn luyện (+/- điểm)**")
-            all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
-            hs_events = [e for e in all_events if e[0] == hs_id]
-            if hs_events:
-                df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày ghi nhận"])
-                st.dataframe(df_events[["Ngày ghi nhận", "Nội dung", "Loại", "Điểm"]].sort_values("Ngày ghi nhận", ascending=False), width="stretch", hide_index=True)
-            else:
-                st.info("Chưa có sự kiện rèn luyện nào được ghi nhận.")
+            # === TAB LỊCH SỬ ===
+            with tab_lich_su:
+                st.write("**Lịch sử Kỷ luật (Theo TT19)**")
+                history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
+                if history_kl:
+                    df_kl = pd.DataFrame(history_kl, columns=["ID", "Hình thức", "Ngày", "Ghi chú"])
+                    df_kl['Ngày'] = pd.to_datetime(df_kl['Ngày']).dt.strftime('%d/%m/%Y')
+                    st.dataframe(df_kl[["Ngày", "Hình thức", "Ghi chú"]], width="stretch", hide_index=True)
+                else: st.success("Chưa bị kỷ luật.")
+                
+                st.write("**Chi tiết Sự kiện (+/- điểm)**")
+                all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
+                hs_events = [e for e in all_events if e[0] == hs_id]
+                if hs_events:
+                    df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày"])
+                    df_events['Ngày'] = pd.to_datetime(df_events['Ngày']).dt.strftime('%d/%m/%Y')
+                    st.dataframe(df_events[["Ngày", "Nội dung", "Loại", "Điểm"]].sort_values("Ngày", ascending=False), width="stretch", hide_index=True)
+                else: st.info("Chưa có sự kiện nào.")
 
-       # === TAB 3: MỤC TIÊU & PHẢN HỒI (CÓ TÍCH HỢP AI MỚI NHẤT) ===
-        with tab_muc_tieu:
-            st.write("Giáo viên Chủ nhiệm có thể ghi chú mục tiêu phấn đấu và nhận xét cá nhân tại đây:")
-            
-            muc_tieu_cu = info.get('muc_tieu_thang') or ""
-            phan_hoi_cu = info.get('phan_hoi_gvcn') or ""
-            
-            # --- NÚT GỌI TRỢ LÝ AI ---
-            if st.button("✨ Nhờ Trợ lý AI viết nhận xét tháng này", type="secondary", width="stretch"):
-                if "GEMINI_API_KEY" not in st.secrets:
-                    st.error("Chưa cấu hình API Key của Google Gemini trong Streamlit Secrets!")
-                else:
-                    with st.spinner("🤖 AI đang đọc hồ sơ, phân tích ưu/khuyết điểm và soạn lời phê..."):
-                        try:
-                            # 1. Cấu hình AI THEO CHUẨN MỚI CỦA GOOGLE
-                            from google import genai
-                            client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                            
-                            # 2. Lọc dữ liệu của tháng hiện tại
-                            now = datetime.now()
-                            start_m = datetime(now.year, now.month, 1).date()
-                            _, last_day = calendar.monthrange(now.year, now.month)
-                            end_m = datetime(now.year, now.month, last_day).date()
-                            
-                            sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
-                            
-                            diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
-                            khen_thuong = [e[4] for e in sk_thang if e[5] == "Khen thưởng"]
-                            vi_pham = [e[4] for e in sk_thang if e[5] == "Vi phạm"]
-                            
-                            kt_str = ", ".join(khen_thuong) if khen_thuong else "Chưa có nổi bật"
-                            vp_str = ", ".join(vi_pham) if vi_pham else "Không vi phạm nội quy"
-                            
-                            # 3. Viết Prompt (Câu lệnh) ra lệnh cho AI
-                            prompt = f"""
-                            Đóng vai là một giáo viên chủ nhiệm tận tâm, tâm lý. Hãy viết 1 đoạn nhận xét cuối tháng (khoảng 3-4 câu) cho học sinh {info.get('ten')}, lớp {info.get('lop')}.
-                            
-                            Dữ liệu thực tế trong tháng này của em:
-                            - Điểm rèn luyện: {diem_thang}/100
-                            - Ưu điểm (Các lần được khen): {kt_str}
-                            - Khuyết điểm (Các lần vi phạm): {vp_str}
-                            
-                            Yêu cầu viết: 
-                            - Giọng văn chuẩn mực sư phạm, tình cảm, xưng 'thầy' và gọi 'em'. 
-                            - Nêu bật điểm tốt để khen ngợi. Nếu có vi phạm thì nhắc nhở khéo léo, mang tính xây dựng. 
-                            - Câu cuối cùng là lời động viên tháng tới. 
-                            - Chỉ trả về đoạn văn bản nhận xét, không cần chào hỏi hay giải thích thêm.
-                            """
-                            
-                            # 4. Gọi AI sinh kết quả
-                            response = client.models.generate_content(
-                                model='gemini-3.6-flash', # <<< Sửa thành 3.6
-                                contents=prompt
-                            )
-                            
-                            # Lưu kết quả tạm thời vào session_state để điền vào ô Text
-                            st.session_state[f"ai_phan_hoi_{hs_id}"] = response.text
-                            st.toast("AI đã viết xong!", icon="🎉")
-                            
-                        except Exception as e:
-                            st.error(f"Lỗi khi gọi AI: {e}")
+            # === TAB MỤC TIÊU ===
+            with tab_muc_tieu:
+                muc_tieu_cu = info.get('muc_tieu_thang') or ""
+                phan_hoi_cu = info.get('phan_hoi_gvcn') or ""
+                
+                if st.button("✨ Trợ lý AI viết nhận xét", type="secondary", width="stretch", key=f"ai_{hs_id}"):
+                    if "GEMINI_API_KEY" not in st.secrets: st.error("Chưa cấu hình API Key!")
+                    else:
+                        with st.spinner("🤖 AI đang soạn lời phê..."):
+                            try:
+                                from google import genai
+                                import calendar
+                                client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                                now = datetime.now()
+                                start_m = datetime(now.year, now.month, 1).date()
+                                _, last_day = calendar.monthrange(now.year, now.month)
+                                end_m = datetime(now.year, now.month, last_day).date()
+                                sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
+                                diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
+                                kt_str = ", ".join([e[4] for e in sk_thang if e[5] == "Khen thưởng"]) or "Chưa có nổi bật"
+                                vp_str = ", ".join([e[4] for e in sk_thang if e[5] == "Vi phạm"]) or "Không vi phạm"
+                                
+                                prompt = f"Đóng vai là GVCN. Hãy viết 1 đoạn nhận xét cuối tháng (3-4 câu) cho học sinh {info.get('ten')}. Điểm rèn luyện: {diem_thang}/100. Ưu điểm: {kt_str}. Khuyết điểm: {vp_str}. Yêu cầu: Giọng chuẩn mực sư phạm, xưng 'thầy/cô' gọi 'em', động viên khen ngợi, nhắc nhở khéo léo. Trả về đúng đoạn văn."
+                                response = client.models.generate_content(model='gemini-3.6-flash', contents=prompt)
+                                st.session_state[f"ai_phan_hoi_{hs_id}"] = response.text
+                                st.toast("AI đã viết xong!", icon="🎉")
+                            except Exception as e: st.error(f"Lỗi AI: {e}")
 
-            # Lấy giá trị hiển thị 
-            hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}", phan_hoi_cu)
-            
-            new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=100)
-            new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=hien_thi_phan_hoi, height=150)
-            
-            if st.button("💾 Lưu Mục tiêu & Phản hồi", type="primary", width="stretch"):
-                if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
-                    st.toast("Đã lưu mục tiêu và phản hồi thành công!", icon="✅")
-                    # Xóa bản nháp AI khỏi bộ nhớ sau khi đã lưu thành công
-                    if f"ai_phan_hoi_{hs_id}" in st.session_state:
-                        del st.session_state[f"ai_phan_hoi_{hs_id}"]
-                else:
-                    st.error("Có lỗi xảy ra khi lưu vào CSDL.")
+                hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}", phan_hoi_cu)
+                new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=80)
+                new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi:", value=hien_thi_phan_hoi, height=120)
+                
+                if st.button("💾 Lưu Nhận xét", type="primary", width="stretch", key=f"save_{hs_id}"):
+                    if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
+                        st.toast("Đã lưu thành công!", icon="✅")
+                        if f"ai_phan_hoi_{hs_id}" in st.session_state: del st.session_state[f"ai_phan_hoi_{hs_id}"]
 # --- HÀM 8: GHI NHẬN NHANH (TỐI ƯU MOBILE BẰNG GIAO DIỆN PILLS & CACHING) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
