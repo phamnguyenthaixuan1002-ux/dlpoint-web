@@ -538,9 +538,9 @@ def show_statistics_page():
             # Hiển thị bảng có thể lọc, tìm kiếm
             st.dataframe(df_vipham[['lop', 'to_nhiem_vu', 'mo_ta', 'diem_ap_dung', 'ngay_tao']], width="stretch")
 # --- HÀM 6: TỔNG KẾT & XUẤT EXCEL ---
-# --- HÀM 6: TỔNG KẾT & XUẤT EXCEL ---
+# --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (NÂNG CẤP FULL GIAO DIỆN) ---
 def show_summary_page():
-    st.header("📑 Tổng kết & Xuất Báo cáo")
+    st.header("📑 Báo cáo Tổng kết Toàn diện")
     st.markdown("---")
     
     user = st.session_state.user_info
@@ -551,10 +551,13 @@ def show_summary_page():
     # TAB 1: TỔNG KẾT TUẦN
     # ==========================================
     with tab_tuan:
-        col_input1, col_input2 = st.columns([1, 3])
+        col_input1, col_input2, col_input3 = st.columns([1, 1, 2])
         with col_input1:
             week_num = st.number_input("Chọn tuần số:", min_value=1, max_value=52, value=1, step=1)
-            btn_tuan = st.button("Xem Tổng Kết Tuần", type="primary", width="stretch")
+        with col_input2:
+            st.write("")
+            st.write("")
+            btn_tuan = st.button("📊 Truy xuất Báo cáo", type="primary", width="stretch")
             
         if btn_tuan or st.session_state.get('show_tuan', False):
             st.session_state.show_tuan = True 
@@ -564,17 +567,15 @@ def show_summary_page():
                 st.error("Không thể xác định ngày của tuần này. Hãy kiểm tra Cài đặt năm học.")
             else:
                 end_date_inc = end_date + timedelta(days=1)
-                st.info(f"**Tuần {week_num}:** Từ {start_date.strftime('%d/%m/%Y')} đến {end_date.strftime('%d/%m/%Y')}")
+                st.success(f"**ĐANG XEM BÁO CÁO TUẦN {week_num}:** Từ {start_date.strftime('%d/%m/%Y')} đến {end_date.strftime('%d/%m/%Y')}")
                 
-                with st.spinner("Đang tính toán điểm..."):
+                with st.spinner("Đang tổng hợp dữ liệu toàn diện..."):
                     all_events = lay_su_kien_trong_khoang_ngay_db(start_date.strftime('%Y-%m-%d'), end_date_inc.strftime('%Y-%m-%d'), user['role'], user['class'], user['group'])
                     all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
                     
                     events_by_student = {}
                     for ev in all_events:
-                        hs_id = ev[0]
-                        if hs_id not in events_by_student: events_by_student[hs_id] = []
-                        events_by_student[hs_id].append(ev)
+                        events_by_student.setdefault(ev[0], []).append(ev)
                         
                     student_list = []
                     for hs in all_students:
@@ -587,12 +588,63 @@ def show_summary_page():
                             'diem': final_score, 'xeploai': xep_loai_hanh_kiem(final_score)
                         })
                     student_list.sort(key=lambda x: (-x['diem'], x['to']))
+                    df_tuan = pd.DataFrame(student_list)
+                    if not df_tuan.empty: df_tuan.insert(0, 'STT', range(1, len(df_tuan) + 1))
+
+                # --- 1. HIỂN THỊ BẢNG XẾP HẠNG TỔ ---
+                st.markdown("#### 🏆 Xếp hạng Thi đua Tổ")
+                if not df_tuan.empty and 'to' in df_tuan.columns:
+                    # Tính điểm trung bình theo tổ
+                    df_team = df_tuan[df_tuan['to'] != ""].groupby('to')['diem'].mean().reset_index()
+                    df_team.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
+                    df_team.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
+                    df_team.insert(0, 'Hạng', range(1, len(df_team) + 1))
+                    
+                    # Vẽ bảng ngang siêu đẹp
+                    cols_team = st.columns(len(df_team) if len(df_team) > 0 else 1)
+                    for i, (_, row) in enumerate(df_team.iterrows()):
+                        with cols_team[i]:
+                            bg_color = "#e6f9ec" if i == 0 else "#f8f9fa"
+                            icon = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "🏅"
+                            st.markdown(f"<div style='background-color:{bg_color}; padding:15px; border-radius:10px; text-align:center; border: 1px solid #ddd;'>"
+                                        f"<h4>{icon} {row['Tên Tổ']}</h4>"
+                                        f"<h2 style='color:#0078D7; margin:0;'>{row['Điểm Trung Bình']:.1f}</h2>"
+                                        f"</div>", unsafe_allow_html=True)
                 
-                df_tuan = pd.DataFrame(student_list)
-                df_tuan.insert(0, 'STT', range(1, len(df_tuan) + 1))
-                st.dataframe(df_tuan[['STT', 'ten', 'lop', 'to', 'diem', 'xeploai']], width="stretch", hide_index=True)
+                st.write("") # Cắt dòng
                 
+                # Chia 2 cột cho Vi phạm và Danh sách tổng
+                col_vipham, col_tong = st.columns([1, 1.5], gap="large")
+
+                # --- 2. CHI TIẾT LỖI VI PHẠM (BÊN TRÁI) ---
+                with col_vipham:
+                    st.markdown("#### ⚠️ Tổng hợp Vi phạm")
+                    vipham_list = [{"Họ Tên": ev[1], "Tổ": ev[3] or "", "Lỗi Vi Phạm": ev[4]} for ev in all_events if ev[5] == "Vi phạm"]
+                    
+                    if vipham_list:
+                        df_vp = pd.DataFrame(vipham_list)
+                        # Đếm số lần vi phạm của mỗi HS cho từng lỗi
+                        df_vp_grouped = df_vp.groupby(['Họ Tên', 'Tổ', 'Lỗi Vi Phạm']).size().reset_index(name='Số lần')
+                        df_vp_grouped = df_vp_grouped.sort_values(by=['Tổ', 'Họ Tên'])
+                        st.dataframe(df_vp_grouped, width="stretch", hide_index=True)
+                    else:
+                        st.success("Tuyệt vời! Tuần này không có học sinh nào vi phạm nội quy.")
+
+                # --- 3. BẢNG TỔNG KẾT ĐIỂM (BÊN PHẢI) ---
+                with col_tong:
+                    st.markdown("#### 📋 Bảng Điểm & Xếp loại Lớp")
+                    if not df_tuan.empty:
+                        # Dùng data_editor để hiển thị đẹp hơn
+                        st.dataframe(
+                            df_tuan[['STT', 'ten', 'to', 'diem', 'xeploai']].rename(columns={'ten': 'Họ và Tên', 'to': 'Tổ', 'diem': 'Tổng điểm', 'xeploai': 'Xếp loại'}),
+                            width="stretch", 
+                            hide_index=True,
+                            height=400
+                        )
+
+                # --- 4. TẢI FILE EXCEL & ZALO ---
                 st.markdown("---")
+                col_btn1, col_btn2 = st.columns(2)
                 
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                     filepath = tmp.name
@@ -602,65 +654,30 @@ def show_summary_page():
                     start_date, end_date, filepath, [], [], [] 
                 )
                 
-                if success:
-                    with open(filepath, "rb") as f:
-                        excel_data = f.read()
+                with col_btn1:
+                    if success:
+                        with open(filepath, "rb") as f: excel_data = f.read()
+                        st.download_button("📥 TẢI FILE EXCEL BÁO CÁO TUẦN (BẢN ĐẦY ĐỦ)", data=excel_data, file_name=f"TongKet_Tuan_{week_num}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", width="stretch")
+                    os.unlink(filepath)
                     
-                    st.download_button(
-                        label="📥 Tải xuống File Excel Tuần",
-                        data=excel_data,
-                        file_name=f"TongKet_Tuan_{week_num}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="primary",
-                        width="stretch"
-                    )
-                else:
-                    st.error(f"Lỗi tạo Excel: {msg}")
-                os.unlink(filepath)
-                
-                # ==========================================
-                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN ZALO
-                # ==========================================
-                st.markdown("---")
-                st.subheader("💬 Trợ lý tạo tin nhắn Zalo")
-                st.info("Hệ thống đã tự động quét dữ liệu và soạn sẵn tin nhắn dưới đây. Thầy/Cô có thể chỉnh sửa trực tiếp, sau đó bôi đen copy (hoặc bấm biểu tượng copy ở góc) để dán vào nhóm Zalo lớp.")
+                with col_btn2:
+                    st.info("👆 File Excel đính kèm chứa 5 sheet chi tiết giống hệt bản Desktop (Xếp hạng, Vi phạm, Khen thưởng...).")
 
-                # 1. Lọc Top khen thưởng (Lấy các em điểm cao nhất và vượt mức 100)
-                top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
-                if not top_students: 
-                    top_students = [hs['ten'] for hs in student_list[:3]] # Lấy top 3 nếu không có ai vượt 100đ
+                # (Giữ nguyên Trợ lý Zalo ở cuối)
+                with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
+                    top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
+                    if not top_students: top_students = [hs['ten'] for hs in student_list[:3]] 
+                    vipham_dict = {}
+                    for ev in all_events:
+                        if ev[5] == 'Vi phạm': vipham_dict.setdefault(ev[1], []).append(ev[4])
+                    vipham_text_list = [f"{ten} ({', '.join(list(set(loi)))})" for ten, loi in vipham_dict.items()]
 
-                # 2. Lọc học sinh có vi phạm trong tuần
-                vipham_dict = {}
-                for ev in all_events:
-                    if ev[5] == 'Vi phạm':
-                        ten_hs = ev[1]
-                        loi = ev[4]
-                        if ten_hs not in vipham_dict:
-                            vipham_dict[ten_hs] = []
-                        vipham_dict[ten_hs].append(loi)
-
-                vipham_text_list = []
-                for ten, cac_loi in vipham_dict.items():
-                    loi_rut_gon = ", ".join(list(set(cac_loi))) # Gom các lỗi trùng lặp lại
-                    vipham_text_list.append(f"{ten} ({loi_rut_gon})")
-
-                # 3. Lắp ráp tin nhắn
-                msg_zalo = f"🌟 KÍNH GỬI QUÝ PHỤ HUYNH LỚP {user['class'] or '...'} - TỔNG KẾT TUẦN {week_num} 🌟\n\n"
-                
-                if top_students:
-                    msg_zalo += f"🏆 Khen ngợi các em tích cực, xuất sắc trong tuần: {', '.join(top_students)}.\n\n"
-                    
-                if vipham_text_list:
-                    msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm nội quy:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh đôn đốc, nhắc nhở thêm các em ở nhà.\n\n"
-                else:
-                    msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
-                    
-                msg_zalo += "📌 Chi tiết về điểm số và xếp loại, quý phụ huynh vui lòng xem trong file Excel đính kèm.\nTrân trọng cảm ơn!"
-
-                # 4. Hiển thị ô Text cho phép sửa
-                st.text_area("Văn bản tin nhắn (Có thể chỉnh sửa):", value=msg_zalo, height=250)
-
+                    msg_zalo = f"🌟 KÍNH GỬI QUÝ PHỤ HUYNH LỚP {user['class'] or '...'} - TỔNG KẾT TUẦN {week_num} 🌟\n\n"
+                    if top_students: msg_zalo += f"🏆 Khen ngợi các em tích cực: {', '.join(top_students)}.\n\n"
+                    if vipham_text_list: msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh nhắc nhở thêm các em.\n\n"
+                    else: msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
+                    msg_zalo += "📌 Chi tiết quý vị xem trong file Excel đính kèm. Trân trọng!"
+                    st.text_area("Copy đoạn văn bản này dán vào nhóm Zalo:", value=msg_zalo, height=200)
 
     # ==========================================
     # TAB 2: TỔNG KẾT THÁNG
@@ -674,64 +691,116 @@ def show_summary_page():
         with col_m3:
             st.write("")
             st.write("")
-            btn_thang = st.button("Xem Báo cáo Tháng", type="primary", width="stretch")
+            btn_thang = st.button("📊 Xem Báo cáo Tháng", type="primary", width="stretch")
             
         if btn_thang or st.session_state.get('show_thang', False):
             st.session_state.show_thang = True
-            
             start_date_month = datetime(year, month, 1)
             _, num_days = calendar.monthrange(year, month)
             end_date_month = datetime(year, month, num_days)
             
-            st.info(f"**Tháng {month}/{year}:** Từ {start_date_month.strftime('%d/%m/%Y')} đến {end_date_month.strftime('%d/%m/%Y')}")
+            st.success(f"**BÁO CÁO THÁNG {month}/{year}:** Từ {start_date_month.strftime('%d/%m/%Y')} đến {end_date_month.strftime('%d/%m/%Y')}")
             
             with st.spinner("Đang tính toán điểm tháng..."):
                 all_events_m = lay_su_kien_trong_khoang_ngay_db(start_date_month.strftime('%Y-%m-%d'), end_date_month.strftime('%Y-%m-%d'), user['role'], user['class'], user['group'])
                 all_students_m = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
                 
                 events_by_student_m = {}
-                for ev in all_events_m:
-                    hs_id = ev[0]
-                    if hs_id not in events_by_student_m: events_by_student_m[hs_id] = []
-                    events_by_student_m[hs_id].append(ev)
+                for ev in all_events_m: events_by_student_m.setdefault(ev[0], []).append(ev)
                     
                 student_list_m = []
                 for hs in all_students_m:
-                    hs_id, ten_hs, lop_hs, to_hs = hs[0], hs[1], hs[2], hs[3] or ""
-                    hs_events = events_by_student_m.get(hs_id, [])
+                    hs_events = events_by_student_m.get(hs[0], [])
                     score = DIEM_KHOI_DAU + sum(e[6] for e in hs_events)
-                    student_list_m.append({
-                        'id': hs_id, 'ten': ten_hs, 'lop': lop_hs, 'to': to_hs, 
-                        'diem': score, 'xeploai': xep_loai_hanh_kiem(score)
-                    })
+                    student_list_m.append({'id': hs[0], 'ten': hs[1], 'lop': hs[2], 'to': hs[3] or "", 'diem': score, 'xeploai': xep_loai_hanh_kiem(score)})
                 student_list_m.sort(key=lambda x: (-x['diem'], x['to']))
             
             df_thang = pd.DataFrame(student_list_m)
-            df_thang.insert(0, 'STT', range(1, len(df_thang) + 1))
-            st.dataframe(df_thang[['STT', 'ten', 'lop', 'to', 'diem', 'xeploai']], width="stretch", hide_index=True)
+            if not df_thang.empty: df_thang.insert(0, 'STT', range(1, len(df_thang) + 1))
+            
+            # --- HIỂN THỊ BẢNG XẾP HẠNG TỔ THÁNG ---
+            st.markdown("#### 🏆 Xếp hạng Thi đua Tổ (Tháng)")
+            if not df_thang.empty and 'to' in df_thang.columns:
+                df_team_m = df_thang[df_thang['to'] != ""].groupby('to')['diem'].mean().reset_index()
+                df_team_m.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
+                df_team_m.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
+                
+                cols_team_m = st.columns(len(df_team_m) if len(df_team_m) > 0 else 1)
+                for i, (_, row) in enumerate(df_team_m.iterrows()):
+                    with cols_team_m[i]:
+                        bg_color = "#e6f9ec" if i == 0 else "#f8f9fa"
+                        st.markdown(f"<div style='background-color:{bg_color}; padding:15px; border-radius:10px; text-align:center; border: 1px solid #ddd;'>"
+                                    f"<h4>Tổ {row['Tên Tổ']}</h4>"
+                                    f"<h2 style='color:#0078D7; margin:0;'>{row['Điểm Trung Bình']:.1f}</h2>"
+                                    f"</div>", unsafe_allow_html=True)
+            
+            st.markdown("#### 📋 Bảng Xếp loại Tháng của Lớp")
+            st.dataframe(df_thang[['STT', 'ten', 'to', 'diem', 'xeploai']].rename(columns={'ten': 'Họ Tên', 'to': 'Tổ', 'diem': 'Điểm', 'xeploai': 'Xếp loại'}), width="stretch", hide_index=True)
             
             st.markdown("---")
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_m:
-                filepath_m = tmp_m.name
-                
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_m: filepath_m = tmp_m.name
             success_m, msg_m = generate_monthly_summary_excel(student_list_m, month, year, user['full_name'], user['class'] or "Toàn trường", filepath_m)
             
             if success_m:
-                with open(filepath_m, "rb") as f_m:
-                    excel_data_m = f_m.read()
-                
-                st.download_button(
-                    label="📥 Tải xuống File Excel Tháng",
-                    data=excel_data_m,
-                    file_name=f"TongKet_Thang_{month}_{year}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    width="stretch"
-                )
-            else:
-                st.error(f"Lỗi tạo Excel: {msg_m}")
+                with open(filepath_m, "rb") as f_m: excel_data_m = f_m.read()
+                st.download_button("📥 TẢI FILE EXCEL BÁO CÁO THÁNG", data=excel_data_m, file_name=f"TongKet_Thang_{month}_{year}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", width="stretch")
             os.unlink(filepath_m)
 
+    # ==========================================
+    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (Giữ nguyên như cũ)
+    # ==========================================
+    with tab_pdf:
+        st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
+        
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month")
+        with col_p2:
+            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year")
+            
+        st.markdown("---")
+        export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"])
+        
+        all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
+        student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
+        
+        selected_student_ids = []
+        if export_scope == "Chọn học sinh cụ thể":
+            selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()))
+            selected_student_ids = [student_dict[name] for name in selected_names]
+        else:
+            selected_student_ids = [hs[0] for hs in all_students]
+            st.info(f"Sẽ xuất phiếu cho toàn bộ {len(selected_student_ids)} học sinh.")
+            
+        if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch"):
+            if not selected_student_ids: st.warning("Vui lòng chọn ít nhất một học sinh.")
+            else:
+                with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        pdf_files = []
+                        success_count, fail_count = 0, 0
+                        for hs in all_students:
+                            if hs[0] in selected_student_ids:
+                                safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
+                                filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
+                                filepath = os.path.join(tmpdirname, filename)
+                                success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
+                                if success:
+                                    pdf_files.append((filename, filepath))
+                                    success_count += 1
+                                else: fail_count += 1
+                                    
+                        if success_count > 0:
+                            st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
+                            if len(pdf_files) == 1:
+                                with open(pdf_files[0][1], "rb") as f: pdf_data = f.read()
+                                st.download_button(f"📥 Tải xuống Phiếu: {pdf_files[0][0]}", data=pdf_data, file_name=pdf_files[0][0], mime="application/pdf", type="primary", width="stretch")
+                            else:
+                                zip_buffer = io.BytesIO()
+                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                                    for fname, fpath in pdf_files: zip_file.write(fpath, arcname=fname)
+                                st.download_button(f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc", data=zip_buffer.getvalue(), file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip", mime="application/zip", type="primary", width="stretch")
+                        else: st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
     # ==========================================
     # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF
     # ==========================================
