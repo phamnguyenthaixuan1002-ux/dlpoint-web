@@ -1195,27 +1195,33 @@ def show_main_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_info = None
             st.rerun()
- # ====================================================================
-    # <<< DÁN KHỐI CODE TỰ ĐỘNG ĐÓNG MENU VÀO ĐÂY >>>
+# ====================================================================
+    # <<< DÁN KHỐI CODE TỰ ĐỘNG ĐÓNG MENU (BẢN NÂNG CẤP) VÀO ĐÂY >>>
     # ====================================================================
     import streamlit.components.v1 as components
     
-    # Tạo biến để nhớ xem người dùng đang ở trang nào
     if 'last_menu_choice' not in st.session_state:
         st.session_state.last_menu_choice = choice
 
-    # Nếu người dùng vừa bấm sang một menu mới
     if choice != st.session_state.last_menu_choice:
         st.session_state.last_menu_choice = choice
         
-        # Chạy mã ngầm mô phỏng việc bấm nút ĐÓNG trên điện thoại
         js_close_sidebar = """
         <script>
-            // Nếu bề ngang màn hình nhỏ hơn 768px (Điện thoại/Tablet dọc)
-            if (window.parent.innerWidth <= 768) {
-                // Giả lập thao tác bấm phím ESCAPE để tự thụt thanh sidebar vào
-                window.parent.document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape'}));
-            }
+            // Đợi 0.1 giây (100ms) để giao diện chuyển trang xong
+            setTimeout(function() {
+                // Nếu là màn hình điện thoại/tablet
+                if (window.parent.innerWidth <= 768) {
+                    // Cách 1: Tìm chính xác nút đóng Sidebar của Streamlit và click
+                    const closeBtn = window.parent.document.querySelector('[data-testid="stSidebarCollapseButton"]');
+                    if (closeBtn) {
+                        closeBtn.click();
+                    } else {
+                        // Cách 2 (Dự phòng): Bấm phím ESC
+                        window.parent.document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape'}));
+                    }
+                }
+            }, 100);
         </script>
         """
         components.html(js_close_sidebar, height=0, width=0)
