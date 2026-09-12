@@ -45,7 +45,7 @@ def get_cached_events():
 # =========================================================
 # --- CẤU HÌNH TRANG WEB ---
 # Lệnh này phải đặt ở đầu tiên
-st.set_page_config(page_title="DLPOINT Web", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="DLPOINT Web", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
 # =========================================================
 # THIẾT LẬP APP TRÀN VIỀN TRÊN ĐIỆN THOẠI (PWA)
 # =========================================================
@@ -1195,6 +1195,31 @@ def show_main_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_info = None
             st.rerun()
+ # ====================================================================
+    # <<< DÁN KHỐI CODE TỰ ĐỘNG ĐÓNG MENU VÀO ĐÂY >>>
+    # ====================================================================
+    import streamlit.components.v1 as components
+    
+    # Tạo biến để nhớ xem người dùng đang ở trang nào
+    if 'last_menu_choice' not in st.session_state:
+        st.session_state.last_menu_choice = choice
+
+    # Nếu người dùng vừa bấm sang một menu mới
+    if choice != st.session_state.last_menu_choice:
+        st.session_state.last_menu_choice = choice
+        
+        # Chạy mã ngầm mô phỏng việc bấm nút ĐÓNG trên điện thoại
+        js_close_sidebar = """
+        <script>
+            // Nếu bề ngang màn hình nhỏ hơn 768px (Điện thoại/Tablet dọc)
+            if (window.parent.innerWidth <= 768) {
+                // Giả lập thao tác bấm phím ESCAPE để tự thụt thanh sidebar vào
+                window.parent.document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape'}));
+            }
+        </script>
+        """
+        components.html(js_close_sidebar, height=0, width=0)
+    # ====================================================================
 
     # --- KHU VỰC NỘI DUNG CHÍNH (ĐIỀU HƯỚNG THEO LỰA CHỌN) ---
     if choice == "Bảng điều khiển":
