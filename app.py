@@ -11,6 +11,7 @@ import calendar
 import io # <<< THÊM THƯ VIỆN NÀY (Để xử lý file Excel mẫu tải về)
 import base64 # <<< THÊM THƯ VIỆN NÀY ĐỂ XỬ LÝ ẢNH TRÊN WEB
 import zipfile  # <<< THÊM DÒNG NÀY
+import google.generativeai as genai
 from database import (
     init_db, verify_user, lay_danh_sach_hoc_sinh_db,
     lay_tat_ca_danh_muc_su_kien_db, lay_chi_tiet_danh_muc_su_kien_db,
@@ -178,15 +179,79 @@ def show_class_management():
             else:
                 st.info("Chưa có sự kiện rèn luyện nào được ghi nhận.")
 
+        # === TAB 3: MỤC TIÊU & PHẢN HỒI (CÓ TÍCH HỢP AI) ===
         with tab_muc_tieu:
             st.write("Giáo viên Chủ nhiệm có thể ghi chú mục tiêu phấn đấu và nhận xét cá nhân tại đây:")
+            
             muc_tieu_cu = info.get('muc_tieu_thang') or ""
             phan_hoi_cu = info.get('phan_hoi_gvcn') or ""
+            
+            # --- NÚT GỌI TRỢ LÝ AI ---
+            if st.button("✨ Nhờ Trợ lý AI viết nhận xét tháng này", type="secondary", width="stretch"):
+                if "GEMINI_API_KEY" not in st.secrets:
+                    st.error("Chưa cấu hình API Key của Google Gemini trong Streamlit Secrets!")
+                else:
+                    with st.spinner("🤖 AI đang đọc hồ sơ, phân tích ưu/khuyết điểm và soạn lời phê..."):
+                        try:
+                            # 1. Cấu hình AI
+                            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                            model = genai.GenerativeModel('gemini-1.5-flash')
+                            
+                            # 2. Lọc dữ liệu của tháng hiện tại
+                            now = datetime.now()
+                            start_m = datetime(now.year, now.month, 1).date()
+                            _, last_day = calendar.monthrange(now.year, now.month)
+                            end_m = datetime(now.year, now.month, last_day).date()
+                            
+                            # Lấy các sự kiện trong tháng của HS này
+                            sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
+                            
+                            diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
+                            khen_thuong = [e[4] for e in sk_thang if e[5] == "Khen thưởng"]
+                            vi_pham = [e[4] for e in sk_thang if e[5] == "Vi phạm"]
+                            
+                            kt_str = ", ".join(khen_thuong) if khen_thuong else "Chưa có nổi bật"
+                            vp_str = ", ".join(vi_pham) if vi_pham else "Không vi phạm nội quy"
+                            
+                            # 3. Viết Prompt (Câu lệnh) ra lệnh cho AI
+                            prompt = f"""
+                            Đóng vai là một giáo viên chủ nhiệm tận tâm, tâm lý. Hãy viết 1 đoạn nhận xét cuối tháng (khoảng 3-4 câu) cho học sinh {info.get('ten')}, lớp {info.get('lop')}.
+                            
+                            Dữ liệu thực tế trong tháng này của em:
+                            - Điểm rèn luyện: {diem_thang}/100
+                            - Ưu điểm (Các lần được khen): {kt_str}
+                            - Khuyết điểm (Các lần vi phạm): {vp_str}
+                            
+                            Yêu cầu viết: 
+                            - Giọng văn chuẩn mực sư phạm, tình cảm, xưng 'thầy/cô' và gọi 'em'. 
+                            - Nêu bật điểm tốt để khen ngợi. Nếu có vi phạm thì nhắc nhở khéo léo, mang tính xây dựng. 
+                            - Câu cuối cùng là lời động viên tháng tới. 
+                            - Chỉ trả về đoạn văn bản nhận xét, không cần chào hỏi hay giải thích thêm.
+                            """
+                            
+                            # 4. Gọi AI sinh kết quả
+                            response = model.generate_content(prompt)
+                            # Lưu kết quả tạm thời vào session_state để điền vào ô Text
+                            st.session_state[f"ai_phan_hoi_{hs_id}"] = response.text
+                            st.toast("AI đã viết xong!", icon="🎉")
+                            
+                        except Exception as e:
+                            st.error(f"Lỗi khi gọi AI: {e}")
+
+            # Lấy giá trị hiển thị (Ưu tiên bản nháp của AI nếu vừa bấm nút, nếu không thì lấy dữ liệu cũ từ DB)
+            hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}", phan_hoi_cu)
+            
             new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=100)
-            new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=phan_hoi_cu, height=150)
-            if st.button("💾 Lưu Mục tiêu & Phản hồi", type="primary"):
+            new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=hien_thi_phan_hoi, height=150)
+            
+            if st.button("💾 Lưu Mục tiêu & Phản hồi", type="primary", width="stretch"):
                 if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
                     st.toast("Đã lưu mục tiêu và phản hồi thành công!", icon="✅")
+                    # Xóa bản nháp AI khỏi bộ nhớ sau khi đã lưu thành công
+                    if f"ai_phan_hoi_{hs_id}" in st.session_state:
+                        del st.session_state[f"ai_phan_hoi_{hs_id}"]
+                else:
+                    st.error("Có lỗi xảy ra khi lưu vào CSDL.")
 # --- HÀM 8: GHI NHẬN NHANH (TỐI ƯU CHO BCS & GVCN) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
