@@ -27,7 +27,8 @@ from database import (
     them_su_kien_ren_luyen_db,
     cap_nhat_anh_the_db,             # <<< Đã có dấu phẩy ở đây
      xoa_nhieu_danh_muc_su_kien_db, # Của lần trước
-    cap_nhat_xu_thuong_db, lay_so_du_xu_db # <<< THÊM 2 HÀM NÀY
+    cap_nhat_xu_thuong_db, lay_so_du_xu_db,<<< THÊM 2 HÀM NÀY
+    xoa_su_kien_ren_luyen_db  # <<< THÊM HÀM NÀY VÀO ĐÂY# 
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
