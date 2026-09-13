@@ -332,7 +332,12 @@ def show_class_management():
                                         
                             if count_del > 0:
                                 st.toast(f"Đã gỡ bỏ thành công {count_del} sự kiện!", icon="✅")
-                                st.rerun() # Tải lại trang để cập nhật điểm mới
+                                
+                                # <<< THÊM 2 DÒNG NÀY ĐỂ XÓA BỘ NHỚ TẠM CỦA BẢNG TRƯỚC KHI TẢI LẠI >>>
+                                if f"editor_del_ev_{hs_id}" in st.session_state:
+                                    del st.session_state[f"editor_del_ev_{hs_id}"]
+                                
+                                st.rerun() # Tải lại trang
                 else: 
                     st.info("Chưa có sự kiện nào.")
 
