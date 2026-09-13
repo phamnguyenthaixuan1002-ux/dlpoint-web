@@ -139,10 +139,6 @@ def show_login_page():
             else:
                 st.error("Tên đăng nhập hoặc mật khẩu không đúng!")
 
-# --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
-# --- HÀM 3: QUẢN LÝ LỚP HỌC ---
-# --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
-# --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 ---
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 (GIAO DIỆN TƯƠNG TÁC MỚI) ---
 def show_class_management():
     st.header("👨‍🎓 Quản lý Lớp học & Hồ sơ 360°")
@@ -250,24 +246,61 @@ def show_class_management():
                 else:
                     st.info("Chưa có dữ liệu rèn luyện.")
 
-            # === TAB LỊCH SỬ ===
+            # === TAB LỊCH SỬ (ĐÃ NÂNG CẤP TÍNH NĂNG XÓA) ===
             with tab_lich_su:
-                st.write("**Lịch sử Kỷ luật (Theo TT19)**")
+                st.write("**1. Lịch sử Kỷ luật (Theo TT19)**")
                 history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
                 if history_kl:
                     df_kl = pd.DataFrame(history_kl, columns=["ID", "Hình thức", "Ngày", "Ghi chú"])
                     df_kl['Ngày'] = pd.to_datetime(df_kl['Ngày']).dt.strftime('%d/%m/%Y')
                     st.dataframe(df_kl[["Ngày", "Hình thức", "Ghi chú"]], width="stretch", hide_index=True)
-                else: st.success("Chưa bị kỷ luật.")
+                else: st.success("Học sinh chưa bị áp dụng hình thức kỷ luật nào.")
                 
-                st.write("**Chi tiết Sự kiện (+/- điểm)**")
+                st.markdown("---")
+                st.write("**2. Chi tiết Sự kiện (+/- điểm)**")
+                
                 all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
                 hs_events = [e for e in all_events if e[0] == hs_id]
+                
                 if hs_events:
                     df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày"])
-                    df_events['Ngày'] = pd.to_datetime(df_events['Ngày']).dt.strftime('%d/%m/%Y')
-                    st.dataframe(df_events[["Ngày", "Nội dung", "Loại", "Điểm"]].sort_values("Ngày", ascending=False), width="stretch", hide_index=True)
-                else: st.info("Chưa có sự kiện nào.")
+                    df_events['Ngày'] = pd.to_datetime(df_events['Ngày']).dt.strftime('%d/%m/%Y %H:%M')
+                    
+                    # Thêm cột Checkbox để chọn xóa
+                    df_events.insert(0, "Chọn xóa", False)
+                    
+                    st.info("💡 Nếu ghi nhận nhầm, thầy/cô hãy đánh dấu tick [x] vào sự kiện ở bảng dưới và bấm nút Xóa.")
+                    
+                    # Tạo bảng tương tác Data Editor
+                    edited_ev_df = st.data_editor(
+                        df_events[["Chọn xóa", "Ngày", "Nội dung", "Loại", "Điểm", "ID"]].sort_values("Ngày", ascending=False),
+                        hide_index=True,
+                        column_config={
+                            "Chọn xóa": st.column_config.CheckboxColumn("Xóa", required=True),
+                            "ID": None # Ẩn cột ID
+                        },
+                        disabled=["Ngày", "Nội dung", "Loại", "Điểm", "ID"], # Khóa các cột khác, chỉ cho phép tick ô Xóa
+                        use_container_width=True,
+                        key=f"editor_del_ev_{hs_id}"
+                    )
+                    
+                    # Lọc ra các ID sự kiện được tick True
+                    selected_ev_rows = edited_ev_df[edited_ev_df["Chọn xóa"] == True]
+                    ids_to_del = selected_ev_rows["ID"].tolist()
+                    
+                    if len(ids_to_del) > 0:
+                        if st.button(f"🗑️ Xác nhận xóa {len(ids_to_del)} sự kiện bị nhầm", type="primary", key=f"btn_del_ev_{hs_id}"):
+                            count_del = 0
+                            with st.spinner("Đang xóa dữ liệu..."):
+                                for ev_id in ids_to_del:
+                                    if xoa_su_kien_ren_luyen_db(ev_id):
+                                        count_del += 1
+                                        
+                            if count_del > 0:
+                                st.toast(f"Đã gỡ bỏ thành công {count_del} sự kiện!", icon="✅")
+                                st.rerun() # Tải lại trang để cập nhật điểm mới
+                else: 
+                    st.info("Chưa có sự kiện nào.")
 
             # === TAB MỤC TIÊU ===
             with tab_muc_tieu:
