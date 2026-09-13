@@ -106,22 +106,32 @@ def setup_pwa():
     </script>
     """
     components.html(pwa_code, height=0, width=0)
-# TỐI ƯU HÓA KHÔNG GIAN GIAO DIỆN (XÓA KHOẢNG TRẮNG THỪA)
+# =========================================================
+# TỐI ƯU HÓA KHÔNG GIAN GIAO DIỆN (ÉP SÁT LỀ TỐI ĐA)
 # =========================================================
 st.markdown("""
     <style>
-        /* 1. Cắt giảm khoảng trắng khổng lồ ở trên cùng màn hình chính */
+        /* 1. Ép sát trên cùng cho phần Nội dung chính bên phải */
         .block-container {
-            padding-top: 1.5rem !important; /* Mặc định là 4-6rem, giảm xuống 1.5 */
+            padding-top: 2rem !important; 
             padding-bottom: 1rem !important;
         }
         
-        /* 2. Cắt giảm khoảng trắng ở trên cùng của thanh Sidebar */
-        [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
-            padding-top: 1rem !important;
+        /* 2. ÉP SÁT LÊN TRÊN CÙNG CHO THANH SIDEBAR BÊN TRÁI (QUAN TRỌNG NHẤT) */
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1.5rem !important;
+        }
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0rem !important;
+        }
+
+        /* 3. Thu nhỏ các đường gạch ngang (---) */
+        hr {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
         }
         
-        /* 3. Thu nhỏ khoảng cách giữa các thành phần tiêu đề */
+        /* 4. Ép các tiêu đề h1, h2, h3 không bị sinh khoảng trắng thừa */
         h1, h2, h3 {
             padding-top: 0rem !important;
             margin-top: 0rem !important;
@@ -1639,50 +1649,55 @@ def show_main_dashboard():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
     
-    # --- THANH BÊN (SIDEBAR) VÀ PHÂN QUYỀN MENU ---
+    # --- THANH BÊN (SIDEBAR) HIỆN ĐẠI & ÉP KHÔNG GIAN ---
     with st.sidebar:
-        st.title(f"Chào, {user['full_name']} 👋")
-        
-        # Đổi nhãn hiển thị cho đẹp
         role_display = "TỔ TRƯỞNG" if role == 'bcs' else role.upper()
         group_display = f" | Tổ {agroup}" if agroup else ""
-        st.caption(f"Vai trò: {role_display} | Lớp: {aclass or 'Toàn trường'}{group_display}")
-        st.markdown("---")
         
-        # 1. Menu cho MỌI NGƯỜI (Admin, GVCN, BCS)
+        # Bỏ st.title, Dùng HTML để ép lời chào và vai trò dính sát vào nhau
+        st.markdown(f"""
+            <div style='margin-top: -10px; margin-bottom: 10px;'>
+                <h4 style='margin-bottom: 0px;'>Chào, {user['full_name']} 👋</h4>
+                <p style='color: gray; font-size: 13.5px; margin-top: 2px; margin-bottom: 5px;'>
+                    Vai trò: {role_display} | Lớp: {aclass or 'Toàn trường'}{group_display}
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
         options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quầy Đổi Thưởng", "Quản lý Lớp học", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
         icons = ["house", "trophy", "gift", "people", "calendar2-check", "lightning-charge"]
         
-        # <<< ĐIỂM MỚI: Cho phép BCS xem Tổng kết & Xuất Excel (Nhưng DB sẽ tự động chỉ lọc Tổ của BCS) >>>
         if role in ['gvcn', 'admin', 'bcs']: 
             options.append("Tổng kết & Xuất Báo cáo")
             icons.append("file-earmark-spreadsheet")
 
-        # 2. Menu CHỈ DÀNH CHO GVCN VÀ ADMIN (BCS KHÔNG THẤY)
         if role in ['gvcn', 'admin']:
             options.extend(["Ghi nhận Kỷ luật (TT19)", "Thống kê & Báo cáo"])
             icons.extend(["shield-exclamation", "bar-chart-steps"])
             
-        # 3. Menu CHỈ DÀNH CHO ADMIN
         if role == 'admin':
             options.append("Quản trị Hệ thống")
             icons.append("gear")
 
-        # 2. Vẽ Menu với Style hiện đại (Theme Ocean Blue)
+        # Tối ưu Menu: Chữ nhỏ lại một xíu, bỏ khoảng cách giữa các nút
         choice = option_menu(
-            menu_title=None,  # Ẩn tiêu đề chữ Menu
+            menu_title=None, 
             options=options,
             icons=icons,
             menu_icon="cast",
             default_index=0,
             styles={
                 "container": {"padding": "0!important", "background-color": "transparent"},
-                "icon": {"font-size": "18px"}, 
+                "icon": {"font-size": "15px"}, 
                 "nav-link": {
-                    "font-size": "15px", "text-align": "left", "margin":"4px 0", 
-                    "border-radius": "8px", "--hover-color": "#e6f2ff"
+                    "font-size": "13.5px",     # Thu nhỏ chữ
+                    "text-align": "left", 
+                    "margin": "0px 0px",       # Xóa hoàn toàn khoảng cách giữa 2 nút
+                    "padding": "8px 10px",     
+                    "border-radius": "6px", 
+                    "--hover-color": "#e6f2ff"
                 },
-                "nav-link-selected": {"background-color": "#0056b3", "color": "white"},
+                "nav-link-selected": {"background-color": "#0056b3", "color": "white", "font-weight": "bold"},
             }
         )
         
