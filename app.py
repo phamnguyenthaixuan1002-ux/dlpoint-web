@@ -1269,34 +1269,52 @@ def show_admin_page():
                             df_imp_sk = pd.read_excel(uploaded_sk)
                             success_sk, fail_sk = 0, 0
                             
-                            with st.spinner("Đang lưu vào hệ thống..."):
-                                for _, row in df_imp_sk.iterrows():
-                                    ten = str(row.get("Tên sự kiện", "")).strip()
-                                    loai = str(row.get("Loại", "")).strip()
-                                    diem_val = row.get("Điểm")
-                                    md_val = row.get("Mức độ vi phạm")
-                                    
-                                    if not ten or ten == "nan" or loai not in ["Vi phạm", "Khen thưởng"]:
-                                        fail_sk += 1; continue
+                            # Làm sạch tên cột (cắt dấu cách thừa) để chống lỗi
+                            df_imp_sk.columns = df_imp_sk.columns.str.strip()
+                            
+                            if "Tên sự kiện" not in df_imp_sk.columns or "Loại" not in df_imp_sk.columns:
+                                st.error("❌ File Excel không đúng chuẩn. Vui lòng tải lại File Mẫu mới nhất ở cột bên trái!")
+                            else:
+                                with st.spinner("Đang lưu vào hệ thống..."):
+                                    for _, row in df_imp_sk.iterrows():
+                                        # Lấy và làm sạch dữ liệu an toàn
+                                        ten = str(row.get("Tên sự kiện", "")).strip()
+                                        loai_goc = str(row.get("Loại", "")).strip().lower()
+                                        diem_val = row.get("Điểm")
+                                        md_val = row.get("Mức độ vi phạm", None)
                                         
-                                    try: diem = int(diem_val)
-                                    except: fail_sk += 1; continue
-                                    
-                                    # Xử lý mức độ
-                                    muc_do = None
-                                    if loai == "Vi phạm" and pd.notna(md_val):
-                                        try: muc_do = int(md_val)
-                                        except: pass
+                                        if not ten or ten == "nan":
+                                            continue
+                                            
+                                        # Hệ thống tự động sửa lỗi chính tả cho cột Loại
+                                        if "vi" in loai_goc or "phạm" in loai_goc: 
+                                            loai = "Vi phạm"
+                                        elif "khen" in loai_goc or "thưởng" in loai_goc: 
+                                            loai = "Khen thưởng"
+                                        else: 
+                                            fail_sk += 1; continue
+                                            
+                                        try: diem = int(float(diem_val)) # Xử lý an toàn nếu Excel tự định dạng
+                                        except: fail_sk += 1; continue
                                         
-                                    # Hàm này có tính năng UPSERT: Đã có tên thì cập nhật, chưa có thì thêm mới
-                                    if them_hoac_cap_nhat_danh_muc_db(ten, loai, diem, muc_do):
-                                        success_sk += 1
-                                    else: fail_sk += 1
-                                    
-                            st.success(f"✅ Nhập hoàn tất: Thành công {success_sk}. Lỗi/Bỏ qua {fail_sk}.")
-                            st.rerun() # Tải lại trang để hiện list mới
+                                        # Xử lý mức độ
+                                        muc_do = None
+                                        if loai == "Vi phạm" and pd.notna(md_val) and str(md_val).strip() != "nan":
+                                            try: muc_do = int(float(md_val))
+                                            except: pass
+                                            
+                                        # Ghi vào CSDL (Có thì cập nhật, Chưa thì thêm mới)
+                                        if them_hoac_cap_nhat_danh_muc_db(ten, loai, diem, muc_do):
+                                            success_sk += 1
+                                        else: fail_sk += 1
+                                        
+                                if success_sk > 0:
+                                    st.success(f"✅ Nhập hoàn tất: Thành công {success_sk} sự kiện. Bỏ qua dòng trống/lỗi: {fail_sk}.")
+                                    st.rerun() # Tải lại trang để hiện list mới
+                                else:
+                                    st.error(f"❌ Không có sự kiện nào được nhập. Bị lỗi {fail_sk} dòng. Vui lòng kiểm tra lại file Excel (Điểm phải là số).")
                         except Exception as e:
-                            st.error(f"Lỗi file: {e}")
+                            st.error(f"Lỗi đọc file: {e}")
 
         st.markdown("---")
 
