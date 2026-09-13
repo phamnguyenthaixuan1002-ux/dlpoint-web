@@ -2076,25 +2076,6 @@ def show_leaderboard_page():
                 cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
     else:
         st.success("✨ Thật tuyệt vời! 100% học sinh trong lớp đều có điểm cộng tích cực trong tuần này!")
-    # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 1. Tìm các học sinh CÓ điểm cộng trong tuần
-    khen_thuong_ids = set([ev[0] for ev in all_events if ev[5] == "Khen thưởng" and ev[6] > 0])
-    
-    # 2. Lọc ra các học sinh KHÔNG nằm trong danh sách trên
-    hs_chua_co_diem = [hs['ten'] for hs in student_list if hs['id'] not in khen_thuong_ids]
-    
-    if len(hs_chua_co_diem) > 0:
-        with st.expander(f"⚠️ Kéo xuống để xem danh sách {len(hs_chua_co_diem)} học sinh CHƯA có điểm cộng trong tuần này:", expanded=False):
-            st.info("💡 **Lời nhắn từ GVCN:** Các em có tên dưới đây tuần này chưa hăng hái phát biểu hoặc làm việc tốt. Tuần sau các em nhớ cố gắng giơ tay nhiều hơn để kiếm Xu thưởng nhé!")
-            
-            # Hiển thị danh sách thành các cột cho gọn
-            cols_no_bonus = st.columns(3)
-            for i, ten_hs in enumerate(hs_chua_co_diem):
-                cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
-    else:
-        st.success("✨ Thật tuyệt vời! 100% học sinh trong lớp đều có điểm cộng tích cực trong tuần này!")
 # --- HÀM 10: QUẦY ĐỔI THƯỞNG (GAMIFICATION) ---
 def show_reward_store_page():
     st.header("🎁 Quầy Đổi Thưởng (Reward Store)")
