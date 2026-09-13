@@ -2024,29 +2024,55 @@ def show_leaderboard_page():
         st.subheader("👥 Xếp Hạng Tổ (Tuần này)")
         df_hs = pd.DataFrame(student_list)
         if not df_hs.empty:
+            # Tính điểm trung bình theo tổ
             team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
             team_ranking.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
             team_ranking.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
-            team_ranking.insert(0, 'Hạng', range(1, len(team_ranking) + 1))
-            st.dataframe(team_ranking, hide_index=True, width="stretch")
-
-    with col_t_right:
-        st.subheader("📜 Bảng Danh Dự (Top 4 - Top 10)")
-        if len(student_list) > 3:
-            top_rest = student_list[3:10]
             
-            # Thay vì dùng DataFrame khô khan, ta dùng HTML để vẽ danh sách cho nổi bật
-            html_list = ""
-            for i, hs in enumerate(top_rest):
-                rank = i + 4
-                bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff" # Đổ màu xen kẽ
-                html_list += f"""
-                <div style='background-color: {bg_color}; padding: 10px 15px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #3498db; display: flex; justify-content: space-between; align-items: center;'>
-                    <div style='font-size: 16px;'><strong style='color: #2980b9;'>Hạng {rank} 🏅</strong> &nbsp; | &nbsp; <b>{hs['ten']}</b> <span style='color: gray; font-size: 14px;'>(Tổ {hs['to']})</span></div>
-                    <div style='font-size: 18px; font-weight: bold; color: #d63031;'>{hs['diem']}đ</div>
+            # Vẽ giao diện Thẻ (Cards) thay vì Bảng
+            html_teams = "<div style='display: flex; flex-direction: column; gap: 12px; margin-top: 10px;'>"
+            
+            for i, (_, row) in enumerate(team_ranking.iterrows()):
+                rank = i + 1
+                ten_to = row['Tên Tổ']
+                diem_tb = row['Điểm Trung Bình']
+                
+                # Phân loại màu sắc theo Thứ hạng
+                if rank == 1:
+                    bg = "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)" # Vàng Gold
+                    color = "#8B6508"
+                    icon = "🏆"
+                    border = "border: 2px solid #DAA520; box-shadow: 0 4px 15px rgba(218,165,32,0.4);"
+                elif rank == 2:
+                    bg = "linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%)" # Bạc Silver
+                    color = "#424242"
+                    icon = "🥈"
+                    border = "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
+                elif rank == 3:
+                    bg = "linear-gradient(135deg, #F4A460 0%, #CD853F 100%)" # Đồng Bronze
+                    color = "#5C3A21"
+                    icon = "🥉"
+                    border = "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
+                else:
+                    bg = "#ffffff"
+                    color = "#333333"
+                    icon = "🏅"
+                    border = "border-left: 5px solid #bdc3c7; border-top: 1px solid #eee; border-bottom: 1px solid #eee; border-right: 1px solid #eee;"
+
+                # Khung HTML cho mỗi Tổ
+                html_teams += f"""
+                <div style='background: {bg}; padding: 15px 20px; border-radius: 12px; {border} display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;'>
+                    <div style='font-size: 18px; font-weight: bold; color: {color};'>
+                        <span style='font-size: 24px; vertical-align: middle;'>{icon}</span> 
+                        Hạng {rank}: Tổ {ten_to}
+                    </div>
+                    <div style='font-size: 22px; font-weight: 900; color: {color};'>
+                        {diem_tb:.1f} <span style='font-size: 14px; font-weight: normal;'>điểm</span>
+                    </div>
                 </div>
                 """
-            st.markdown(html_list, unsafe_allow_html=True)
+            html_teams += "</div>"
+            st.markdown(html_teams, unsafe_allow_html=True)
 
     # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
     st.markdown("<br>", unsafe_allow_html=True)
