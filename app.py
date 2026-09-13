@@ -861,21 +861,52 @@ def show_summary_page():
                 with col_btn2:
                     st.info("👆 File Excel đính kèm chứa 5 sheet chi tiết giống hệt bản Desktop (Xếp hạng, Vi phạm, Khen thưởng...).")
 
-                # (Giữ nguyên Trợ lý Zalo ở cuối)
-                with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
-                    top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
-                    if not top_students: top_students = [hs['ten'] for hs in student_list[:3]] 
-                    vipham_dict = {}
-                    for ev in all_events:
-                        if ev[5] == 'Vi phạm': vipham_dict.setdefault(ev[1], []).append(ev[4])
-                    vipham_text_list = [f"{ten} ({', '.join(list(set(loi)))})" for ten, loi in vipham_dict.items()]
+                # 1. TRỢ LÝ CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
+                if user['role'] in ['gvcn', 'admin']:
+                    with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
+                        st.info("Hệ thống tự động quét dữ liệu và soạn sẵn tin nhắn. Thầy/Cô có thể copy dán vào nhóm Zalo lớp.")
+                        
+                        top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
+                        if not top_students: top_students = [hs['ten'] for hs in student_list[:3]] 
+                        vipham_dict = {}
+                        for ev in all_events:
+                            if ev[5] == 'Vi phạm': vipham_dict.setdefault(ev[1], []).append(ev[4])
+                        vipham_text_list = [f"{ten} ({', '.join(list(set(loi)))})" for ten, loi in vipham_dict.items()]
 
-                    msg_zalo = f"🌟 KÍNH GỬI QUÝ PHỤ HUYNH LỚP {user['class'] or '...'} - TỔNG KẾT TUẦN {week_num} 🌟\n\n"
-                    if top_students: msg_zalo += f"🏆 Khen ngợi các em tích cực: {', '.join(top_students)}.\n\n"
-                    if vipham_text_list: msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh nhắc nhở thêm các em.\n\n"
-                    else: msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
-                    msg_zalo += "📌 Chi tiết quý vị xem trong file Excel đính kèm. Trân trọng!"
-                    st.text_area("Copy đoạn văn bản này dán vào nhóm Zalo:", value=msg_zalo, height=200)
+                        msg_zalo = f"🌟 KÍNH GỬI QUÝ PHỤ HUYNH LỚP {user['class'] or '...'} - TỔNG KẾT TUẦN {week_num} 🌟\n\n"
+                        if top_students: msg_zalo += f"🏆 Khen ngợi các em tích cực: {', '.join(top_students)}.\n\n"
+                        if vipham_text_list: msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh nhắc nhở thêm các em.\n\n"
+                        else: msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
+                        msg_zalo += "📌 Chi tiết quý vị xem trong file Excel đính kèm. Trân trọng!"
+                        
+                        st.text_area("Văn bản tin nhắn (Có thể chỉnh sửa):", value=msg_zalo, height=200, key="txt_zalo_gv")
+
+                # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
+                elif user['role'] == 'bcs':
+                    with st.expander("💬 Mở Trợ lý soạn Báo cáo Tổ (Gửi GVCN)"):
+                        st.info("Hệ thống đã tự động tổng hợp số liệu của Tổ. Em hãy copy và gửi báo cáo này cho Lớp trưởng hoặc GVCN nhé.")
+                        
+                        top_students_bcs = [hs['ten'] for hs in student_list[:3] if hs['diem'] > DIEM_KHOI_DAU]
+                        vipham_dict_bcs = {}
+                        for ev in all_events:
+                            if ev[5] == 'Vi phạm': vipham_dict_bcs.setdefault(ev[1], []).append(ev[4])
+                        vipham_text_bcs = [f"{ten} ({', '.join(list(set(loi)))})" for ten, loi in vipham_dict_bcs.items()]
+
+                        group_name = user['group'] or "..."
+                        class_name = user['class'] or "..."
+                        
+                        msg_bcs = f"📊 BÁO CÁO HOẠT ĐỘNG TỔ {group_name} - LỚP {class_name} (TUẦN {week_num})\n\n"
+                        if top_students_bcs: 
+                            msg_bcs += f"✅ Biểu dương các bạn tích cực: {', '.join(top_students_bcs)}.\n\n"
+                        
+                        if vipham_text_bcs: 
+                            msg_bcs += f"⚠️ Các bạn còn vi phạm trong tuần:\n- {';\n- '.join(vipham_text_bcs)}.\n\nĐề nghị các bạn rút kinh nghiệm vào tuần sau.\n\n"
+                        else: 
+                            msg_bcs += f"✨ Tuần này Tổ {group_name} thực hiện nề nếp rất tốt, không có bạn nào vi phạm!\n\n"
+                            
+                        msg_bcs += "📌 Báo cáo chi tiết xem tại file đính kèm."
+                        
+                        st.text_area("Đoạn văn báo cáo (Có thể chỉnh sửa):", value=msg_bcs, height=200, key="txt_report_bcs")
 
     # ==========================================
     # TAB 2: TỔNG KẾT THÁNG
