@@ -1846,40 +1846,82 @@ def show_main_dashboard():
     elif choice == "Quản trị Hệ thống":
         show_admin_page()
 
-# --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN ---
-def create_certificate_image(student_name, class_name, achievement_text):
-    from PIL import Image, ImageDraw, ImageFont
+# --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN (CÓ ẢNH HỌC SINH) ---
+def create_certificate_image(student_name, class_name, achievement_text, photo_filename=None):
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
     import io
+    import os
     
-    # Tạo một bức ảnh nền màu vàng nhạt sang trọng
-    img = Image.new('RGB', (800, 600), color='#FDF5E6')
+    # 1. Tạo nền Bằng khen khổ lớn, chất lượng cao (1000x750)
+    # Dùng màu nền Trắng sữa ngà (Ivory) sang trọng
+    img = Image.new('RGB', (1000, 750), color='#FFFFF0')
     draw = ImageDraw.Draw(img)
 
-    # Vẽ khung viền vàng (Đậm ở ngoài, mảnh ở trong)
-    draw.rectangle([20, 20, 780, 580], outline='#DAA520', width=12)
-    draw.rectangle([35, 35, 765, 565], outline='#DAA520', width=3)
+    # 2. Vẽ bộ Khung viền Hoàng gia
+    # Viền ngoài cùng: Xanh Đen (Navy) dày dặn
+    draw.rectangle([25, 25, 975, 725], outline='#001F3F', width=15)
+    # Viền trong: Vàng kim (Gold) sắc nét
+    draw.rectangle([50, 50, 950, 700], outline='#DAA520', width=4)
+    # Viền góc trang trí nhẹ
+    draw.rectangle([60, 60, 940, 690], outline='#DAA520', width=1)
 
-    # Tải Font chữ (Dự phòng lỗi nếu máy chủ mất font)
+    # 3. Nạp Font chữ (Dự phòng lỗi nếu máy chủ mất font)
     try:
-        font_title = ImageFont.truetype("fonts/timesbd.ttf", 55)
-        font_subtitle = ImageFont.truetype("fonts/times.ttf", 30)
-        font_name = ImageFont.truetype("fonts/timesbd.ttf", 65)
+        font_title = ImageFont.truetype("fonts/timesbd.ttf", 60)
+        font_subtitle = ImageFont.truetype("fonts/times.ttf", 35)
+        font_name = ImageFont.truetype("fonts/timesbd.ttf", 75)
+        font_small = ImageFont.truetype("fonts/timesi.ttf", 25)
     except:
-        font_title = font_subtitle = font_name = ImageFont.load_default()
+        font_title = font_subtitle = font_name = font_small = ImageFont.load_default()
 
-    # Viết chữ lên Bằng khen
-    draw.text((400, 100), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
-    draw.text((400, 200), "Tuyên dương học sinh:", fill="#333333", font=font_subtitle, anchor="mt")
-    draw.text((400, 280), str(student_name).upper(), fill="#000080", font=font_name, anchor="mt")
-    draw.text((400, 380), f"Học sinh lớp: {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
-    draw.text((400, 450), str(achievement_text), fill="#D2691E", font=font_subtitle, anchor="mt")
+    # 4. Viết Tiêu đề (Trên cùng)
+    draw.text((500, 100), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
 
-    # Xuất ra định dạng Byte để Web tải về
+    # 5. XỬ LÝ VÀ GHÉP ẢNH HỌC SINH (HÌNH TRÒN CÓ VIỀN VÀNG)
+    avatar_size = 200 # Kích thước ảnh
+    avatar_x = 400    # Tọa độ X (1000/2 - 200/2 = 400 để căn giữa)
+    avatar_y = 200    # Tọa độ Y
+
+    has_valid_photo = False
+    if photo_filename and os.path.exists(os.path.join('student_photos', photo_filename)):
+        try:
+            # Mở ảnh và thay đổi kích thước
+            avatar = Image.open(os.path.join('student_photos', photo_filename)).convert("RGBA")
+            avatar = avatar.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
+            
+            # Cắt ảnh thành hình tròn
+            mask = Image.new('L', (avatar_size, avatar_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
+            
+            # Ghép ảnh vào nền
+            output = ImageOps.fit(avatar, mask.size, centering=(0.5, 0.5))
+            output.putalpha(mask)
+            img.paste(output, (avatar_x, avatar_y), output)
+            has_valid_photo = True
+        except Exception as e:
+            print(f"Lỗi ghép ảnh thẻ: {e}")
+
+    if has_valid_photo:
+        # Vẽ vòng tròn Vàng kim bọc ngoài ảnh
+        draw.ellipse([avatar_x - 5, avatar_y - 5, avatar_x + avatar_size + 5, avatar_y + avatar_size + 5], outline='#DAA520', width=6)
+    else:
+        # Nếu HS chưa có ảnh, vẽ một biểu tượng ngôi sao hoặc logo trường thay thế (ở đây vẽ ngôi sao tượng trưng)
+        draw.text((500, avatar_y + 80), "⭐", fill="#DAA520", font=font_title, anchor="mt")
+
+    # 6. Viết thông tin chi tiết (Phía dưới ảnh)
+    draw.text((500, 430), "Tuyên dương học sinh:", fill="#555555", font=font_subtitle, anchor="mt")
+    draw.text((500, 480), str(student_name).upper(), fill="#001F3F", font=font_name, anchor="mt")
+    
+    draw.text((500, 580), f"Học sinh lớp {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
+    
+    # Đoạn text thành tích màu cam nổi bật
+    draw.text((500, 640), str(achievement_text), fill="#D35400", font=font_title, anchor="mt")
+
+    # 7. Xuất ra định dạng Byte
     buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=90)
+    img.save(buf, format='JPEG', quality=95)
     return buf.getvalue()
-
-
 # --- HÀM 8: BẢNG VÀNG THI ĐUA ĐƯỢC NÂNG CẤP CÓ ẢNH ---
 def show_leaderboard_page():
     import streamlit as st
@@ -1963,7 +2005,7 @@ def show_leaderboard_page():
             """, unsafe_allow_html=True)
             
             try:
-                cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}")
+                cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}", hs['anh_the'])
                 st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", width="stretch", key=f"btn_cert_{hs['id']}")
             except Exception as e:
                 st.error("Lỗi tạo bằng khen")
