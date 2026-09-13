@@ -26,7 +26,7 @@ from database import (
     them_hoc_sinh_db, xoa_nhieu_hoc_sinh_db,
     them_su_kien_ren_luyen_db,
     cap_nhat_anh_the_db,             # <<< Đã có dấu phẩy ở đây
-     xoa_nhieu_danh_muc_su_kien_db, # Của lần trước
+    xoa_nhieu_danh_muc_su_kien_db, # Của lần trước
     cap_nhat_xu_thuong_db, 
     lay_so_du_xu_db,<<< THÊM 2 HÀM NÀY
     xoa_su_kien_ren_luyen_db  # <<< THÊM HÀM NÀY VÀO ĐÂY# 
