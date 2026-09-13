@@ -106,6 +106,28 @@ def setup_pwa():
     </script>
     """
     components.html(pwa_code, height=0, width=0)
+# TỐI ƯU HÓA KHÔNG GIAN GIAO DIỆN (XÓA KHOẢNG TRẮNG THỪA)
+# =========================================================
+st.markdown("""
+    <style>
+        /* 1. Cắt giảm khoảng trắng khổng lồ ở trên cùng màn hình chính */
+        .block-container {
+            padding-top: 1.5rem !important; /* Mặc định là 4-6rem, giảm xuống 1.5 */
+            padding-bottom: 1rem !important;
+        }
+        
+        /* 2. Cắt giảm khoảng trắng ở trên cùng của thanh Sidebar */
+        [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+            padding-top: 1rem !important;
+        }
+        
+        /* 3. Thu nhỏ khoảng cách giữa các thành phần tiêu đề */
+        h1, h2, h3 {
+            padding-top: 0rem !important;
+            margin-top: 0rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 # Gọi hàm chạy ngầm ngay khi mở web
 setup_pwa()
 # =========================================================
