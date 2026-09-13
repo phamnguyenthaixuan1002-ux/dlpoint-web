@@ -1706,46 +1706,7 @@ def show_main_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_info = None
             st.rerun()
-# ====================================================================
-    # <<< DÁN KHỐI CODE TỰ ĐỘNG ĐÓNG MENU (BẢN TỐI THƯỢNG) VÀO ĐÂY >>>
-    # ====================================================================
-    import streamlit.components.v1 as components
     
-    if 'last_menu_choice' not in st.session_state:
-        st.session_state.last_menu_choice = choice
-
-    if choice != st.session_state.last_menu_choice:
-        st.session_state.last_menu_choice = choice
-        
-        js_close_sidebar = """
-        <script>
-            // Đợi 0.5 giây để đảm bảo trình duyệt điện thoại đã vẽ xong giao diện
-            setTimeout(function() {
-                var parentDoc = window.parent.document;
-                var parentWin = window.parent;
-                
-                // Chuẩn màn hình điện thoại/tablet của Streamlit là dưới 991px
-                if (parentWin.innerWidth <= 991) {
-                    
-                    // Phương pháp 1: Ra lệnh bấm phím ESCAPE mạnh mẽ hơn
-                    var escEvent = new KeyboardEvent('keydown', {
-                        key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true
-                    });
-                    parentDoc.dispatchEvent(escEvent);
-                    
-                    // Phương pháp 2: Tìm và bấm thẳng vào nút "X" của thanh Menu
-                    var sidebar = parentDoc.querySelector('[data-testid="stSidebar"]');
-                    if (sidebar) {
-                        var buttons = sidebar.querySelectorAll('button');
-                        if (buttons.length > 0) {
-                            buttons[0].click(); // Nút đầu tiên trên thanh menu luôn là nút X
-                        }
-                    }
-                }
-            }, 500);
-        </script>
-        """
-        components.html(js_close_sidebar, height=0, width=0)
     # ====================================================================
     # --- KHU VỰC NỘI DUNG CHÍNH (ĐIỀU HƯỚNG THEO LỰA CHỌN) ---
     if choice == "Bảng điều khiển":
