@@ -2024,20 +2024,16 @@ def show_leaderboard_page():
         st.subheader("👥 Xếp Hạng Tổ (Tuần này)")
         df_hs = pd.DataFrame(student_list)
         if not df_hs.empty:
-            # Tính điểm trung bình theo tổ
             team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
             team_ranking.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
             team_ranking.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
             
-            # Vẽ giao diện Thẻ (Cards) thay vì Bảng
             html_teams = "<div style='display: flex; flex-direction: column; gap: 12px; margin-top: 10px;'>"
-            
             for i, (_, row) in enumerate(team_ranking.iterrows()):
                 rank = i + 1
                 ten_to = row['Tên Tổ']
                 diem_tb = row['Điểm Trung Bình']
                 
-                # Phân loại màu sắc theo Thứ hạng
                 if rank == 1:
                     bg, color, icon, border = "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)", "#8B6508", "🏆", "border: 2px solid #DAA520; box-shadow: 0 4px 15px rgba(218,165,32,0.4);"
                 elif rank == 2:
@@ -2047,11 +2043,39 @@ def show_leaderboard_page():
                 else:
                     bg, color, icon, border = "#ffffff", "#333333", "🏅", "border-left: 5px solid #bdc3c7; border-top: 1px solid #eee; border-bottom: 1px solid #eee; border-right: 1px solid #eee;"
 
-                # (VIẾT TRÊN 1 DÒNG ĐỂ TRÁNH BỊ LỖI THỤT LỀ MARKDOWN)
+                # Viết trên 1 dòng để tránh lỗi Markdown của Streamlit
                 html_teams += f"<div style='background: {bg}; padding: 15px 20px; border-radius: 12px; {border} display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;'><div style='font-size: 18px; font-weight: bold; color: {color};'><span style='font-size: 24px; vertical-align: middle;'>{icon}</span> Hạng {rank}: Tổ {ten_to}</div><div style='font-size: 22px; font-weight: 900; color: {color};'>{diem_tb:.1f} <span style='font-size: 14px; font-weight: normal;'>điểm</span></div></div>"
                 
             html_teams += "</div>"
             st.markdown(html_teams, unsafe_allow_html=True)
+
+    with col_t_right:
+        st.subheader("📜 Bảng Danh Dự (Top 4 - Top 10)")
+        if len(student_list) > 3:
+            top_rest = student_list[3:10]
+            
+            html_list = ""
+            for i, hs in enumerate(top_rest):
+                rank = i + 4
+                bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff"
+                # Viết trên 1 dòng để tránh lỗi
+                html_list += f"<div style='background-color: {bg_color}; padding: 10px 15px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #3498db; display: flex; justify-content: space-between; align-items: center;'><div style='font-size: 16px;'><strong style='color: #2980b9;'>Hạng {rank} 🏅</strong> &nbsp; | &nbsp; <b>{hs['ten']}</b> <span style='color: gray; font-size: 14px;'>(Tổ {hs['to']})</span></div><div style='font-size: 18px; font-weight: bold; color: #d63031;'>{hs['diem']}đ</div></div>"
+            st.markdown(html_list, unsafe_allow_html=True)
+
+    # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    khen_thuong_ids = set([ev[0] for ev in all_events if ev[5] == "Khen thưởng" and ev[6] > 0])
+    hs_chua_co_diem = [hs['ten'] for hs in student_list if hs['id'] not in khen_thuong_ids]
+    
+    if len(hs_chua_co_diem) > 0:
+        with st.expander(f"⚠️ Kéo xuống để xem danh sách {len(hs_chua_co_diem)} học sinh CHƯA có điểm cộng trong tuần này:", expanded=False):
+            st.info("💡 **Lời nhắn từ GVCN:** Các em có tên dưới đây tuần này chưa hăng hái phát biểu hoặc làm việc tốt. Tuần sau các em nhớ cố gắng giơ tay nhiều hơn để kiếm Xu thưởng nhé!")
+            cols_no_bonus = st.columns(3)
+            for i, ten_hs in enumerate(hs_chua_co_diem):
+                cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
+    else:
+        st.success("✨ Thật tuyệt vời! 100% học sinh trong lớp đều có điểm cộng tích cực trong tuần này!")
     # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
     st.markdown("<br>", unsafe_allow_html=True)
     
