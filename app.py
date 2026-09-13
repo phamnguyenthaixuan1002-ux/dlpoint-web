@@ -1846,79 +1846,78 @@ def show_main_dashboard():
     elif choice == "Quản trị Hệ thống":
         show_admin_page()
 
-# --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN (CÓ ẢNH HỌC SINH) ---
+# --- HÀM HỖ TRỢ: TẠO ẢNH BẰNG KHEN (TỐI ƯU CĂN CHỈNH & DẢI LỤA ĐỎ) ---
 def create_certificate_image(student_name, class_name, achievement_text, photo_filename=None):
     from PIL import Image, ImageDraw, ImageFont, ImageOps
     import io
     import os
     
-    # 1. Tạo nền Bằng khen khổ lớn, chất lượng cao (1000x750)
-    # Dùng màu nền Trắng sữa ngà (Ivory) sang trọng
+    # 1. Nền Trắng ngà sang trọng (1000x750)
     img = Image.new('RGB', (1000, 750), color='#FFFFF0')
     draw = ImageDraw.Draw(img)
 
-    # 2. Vẽ bộ Khung viền Hoàng gia
-    # Viền ngoài cùng: Xanh Đen (Navy) dày dặn
+    # 2. Khung viền Hoàng gia
     draw.rectangle([25, 25, 975, 725], outline='#001F3F', width=15)
-    # Viền trong: Vàng kim (Gold) sắc nét
-    draw.rectangle([50, 50, 950, 700], outline='#DAA520', width=4)
-    # Viền góc trang trí nhẹ
-    draw.rectangle([60, 60, 940, 690], outline='#DAA520', width=1)
+    draw.rectangle([45, 45, 955, 705], outline='#DAA520', width=4)
+    draw.rectangle([55, 55, 945, 695], outline='#DAA520', width=1)
 
-    # 3. Nạp Font chữ (Dự phòng lỗi nếu máy chủ mất font)
+    # 3. Nạp Font chữ
     try:
-        font_title = ImageFont.truetype("fonts/timesbd.ttf", 60)
+        font_title = ImageFont.truetype("fonts/timesbd.ttf", 65) # To hơn
         font_subtitle = ImageFont.truetype("fonts/times.ttf", 35)
-        font_name = ImageFont.truetype("fonts/timesbd.ttf", 75)
-        font_small = ImageFont.truetype("fonts/timesi.ttf", 25)
+        font_name = ImageFont.truetype("fonts/timesbd.ttf", 85)  # To hơn
+        font_achievement = ImageFont.truetype("fonts/timesbd.ttf", 45)
     except:
-        font_title = font_subtitle = font_name = font_small = ImageFont.load_default()
+        font_title = font_subtitle = font_name = font_achievement = ImageFont.load_default()
 
-    # 4. Viết Tiêu đề (Trên cùng)
-    draw.text((500, 100), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
+    # 4. Tiêu đề
+    draw.text((500, 80), "BẢNG VÀNG VINH DANH", fill="#B22222", font=font_title, anchor="mt")
 
-    # 5. XỬ LÝ VÀ GHÉP ẢNH HỌC SINH (HÌNH TRÒN CÓ VIỀN VÀNG)
-    avatar_size = 200 # Kích thước ảnh
-    avatar_x = 400    # Tọa độ X (1000/2 - 200/2 = 400 để căn giữa)
-    avatar_y = 200    # Tọa độ Y
+    # 5. XỬ LÝ GHÉP ẢNH HỌC SINH
+    avatar_size = 200 
+    avatar_x = 400    
+    avatar_y = 170    # Đẩy ảnh lên cao một chút cho thoáng
 
     has_valid_photo = False
-    if photo_filename and os.path.exists(os.path.join('student_photos', photo_filename)):
+    if photo_filename and isinstance(photo_filename, str) and os.path.exists(os.path.join('student_photos', photo_filename)):
         try:
-            # Mở ảnh và thay đổi kích thước
             avatar = Image.open(os.path.join('student_photos', photo_filename)).convert("RGBA")
             avatar = avatar.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
             
-            # Cắt ảnh thành hình tròn
             mask = Image.new('L', (avatar_size, avatar_size), 0)
             mask_draw = ImageDraw.Draw(mask)
             mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
             
-            # Ghép ảnh vào nền
             output = ImageOps.fit(avatar, mask.size, centering=(0.5, 0.5))
             output.putalpha(mask)
             img.paste(output, (avatar_x, avatar_y), output)
             has_valid_photo = True
-        except Exception as e:
-            print(f"Lỗi ghép ảnh thẻ: {e}")
+        except: pass
 
     if has_valid_photo:
-        # Vẽ vòng tròn Vàng kim bọc ngoài ảnh
-        draw.ellipse([avatar_x - 5, avatar_y - 5, avatar_x + avatar_size + 5, avatar_y + avatar_size + 5], outline='#DAA520', width=6)
+        draw.ellipse([avatar_x - 6, avatar_y - 6, avatar_x + avatar_size + 6, avatar_y + avatar_size + 6], outline='#DAA520', width=8)
     else:
-        # Nếu HS chưa có ảnh, vẽ một biểu tượng ngôi sao hoặc logo trường thay thế (ở đây vẽ ngôi sao tượng trưng)
-        draw.text((500, avatar_y + 80), "⭐", fill="#DAA520", font=font_title, anchor="mt")
+        # Nếu chưa có ảnh, vẽ một huy chương vàng tượng trưng
+        draw.ellipse([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size], fill='#FFF8DC', outline='#DAA520', width=5)
+        draw.text((500, avatar_y + 100), "🏆", fill="#DAA520", font=font_title, anchor="mm")
 
-    # 6. Viết thông tin chi tiết (Phía dưới ảnh)
-    draw.text((500, 430), "Tuyên dương học sinh:", fill="#555555", font=font_subtitle, anchor="mt")
-    draw.text((500, 480), str(student_name).upper(), fill="#001F3F", font=font_name, anchor="mt")
+    # 6. Thông tin học sinh
+    draw.text((500, 400), "Tuyên dương học sinh:", fill="#555555", font=font_subtitle, anchor="mt")
+    draw.text((500, 450), str(student_name).upper(), fill="#001F3F", font=font_name, anchor="mt")
+    draw.text((500, 550), f"Học sinh lớp: {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
     
-    draw.text((500, 580), f"Học sinh lớp {class_name}", fill="#333333", font=font_subtitle, anchor="mt")
+    # 7. Dải lụa đỏ cho Thành tích (Tạo điểm nhấn mạnh mẽ)
+    # Vẽ một hình chữ nhật bo góc giả làm dải lụa
+    box_w = 700
+    box_h = 70
+    box_x = 500 - (box_w/2)
+    box_y = 620
+    draw.rounded_rectangle([box_x, box_y, box_x + box_w, box_y + box_h], radius=15, fill="#B22222")
     
-    # Đoạn text thành tích màu cam nổi bật
-    draw.text((500, 640), str(achievement_text), fill="#D35400", font=font_title, anchor="mt")
+    # Chữ thành tích màu vàng gold nằm trên dải lụa đỏ
+    draw.text((500, 630), str(achievement_text), fill="#FFD700", font=font_achievement, anchor="mt")
 
-    # 7. Xuất ra định dạng Byte
+    # Xuất file
     buf = io.BytesIO()
     img.save(buf, format='JPEG', quality=95)
     return buf.getvalue()
@@ -2018,9 +2017,11 @@ def show_leaderboard_page():
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
-    col_t_left, col_t_right = st.columns([1, 1])
+    # === KHU VỰC 2: BẢNG XẾP HẠNG TỔ VÀ TOP 4-10 ===
+    col_t_left, col_t_right = st.columns([1, 1.2], gap="large")
+    
     with col_t_left:
-        st.subheader("👥 Bảng Xếp Hạng Tổ (Tuần này)")
+        st.subheader("👥 Xếp Hạng Tổ (Tuần này)")
         df_hs = pd.DataFrame(student_list)
         if not df_hs.empty:
             team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
@@ -2030,12 +2031,42 @@ def show_leaderboard_page():
             st.dataframe(team_ranking, hide_index=True, width="stretch")
 
     with col_t_right:
-        st.subheader("📜 Top 4-10 (Cố gắng vươn lên)")
+        st.subheader("📜 Bảng Danh Dự (Top 4 - Top 10)")
         if len(student_list) > 3:
-            df_rest = pd.DataFrame(student_list[3:10])
-            df_rest.insert(0, 'Hạng', range(4, 4 + len(df_rest)))
-            df_rest.rename(columns={'ten': 'Họ Tên', 'lop': 'Lớp', 'diem': 'Điểm'}, inplace=True)
-            st.dataframe(df_rest[['Hạng', 'Họ Tên', 'Lớp', 'Điểm']], hide_index=True, width="stretch")
+            top_rest = student_list[3:10]
+            
+            # Thay vì dùng DataFrame khô khan, ta dùng HTML để vẽ danh sách cho nổi bật
+            html_list = ""
+            for i, hs in enumerate(top_rest):
+                rank = i + 4
+                bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff" # Đổ màu xen kẽ
+                html_list += f"""
+                <div style='background-color: {bg_color}; padding: 10px 15px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #3498db; display: flex; justify-content: space-between; align-items: center;'>
+                    <div style='font-size: 16px;'><strong style='color: #2980b9;'>Hạng {rank} 🏅</strong> &nbsp; | &nbsp; <b>{hs['ten']}</b> <span style='color: gray; font-size: 14px;'>(Tổ {hs['to']})</span></div>
+                    <div style='font-size: 18px; font-weight: bold; color: #d63031;'>{hs['diem']}đ</div>
+                </div>
+                """
+            st.markdown(html_list, unsafe_allow_html=True)
+
+    # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 1. Tìm các học sinh CÓ điểm cộng trong tuần
+    khen_thuong_ids = set([ev[0] for ev in all_events if ev[5] == "Khen thưởng" and ev[6] > 0])
+    
+    # 2. Lọc ra các học sinh KHÔNG nằm trong danh sách trên
+    hs_chua_co_diem = [hs['ten'] for hs in student_list if hs['id'] not in khen_thuong_ids]
+    
+    if len(hs_chua_co_diem) > 0:
+        with st.expander(f"⚠️ Kéo xuống để xem danh sách {len(hs_chua_co_diem)} học sinh CHƯA có điểm cộng trong tuần này:", expanded=False):
+            st.info("💡 **Lời nhắn từ GVCN:** Các em có tên dưới đây tuần này chưa hăng hái phát biểu hoặc làm việc tốt. Tuần sau các em nhớ cố gắng giơ tay nhiều hơn để kiếm Xu thưởng nhé!")
+            
+            # Hiển thị danh sách thành các cột cho gọn
+            cols_no_bonus = st.columns(3)
+            for i, ten_hs in enumerate(hs_chua_co_diem):
+                cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
+    else:
+        st.success("✨ Thật tuyệt vời! 100% học sinh trong lớp đều có điểm cộng tích cực trong tuần này!")
 # --- HÀM 10: QUẦY ĐỔI THƯỞNG (GAMIFICATION) ---
 def show_reward_store_page():
     st.header("🎁 Quầy Đổi Thưởng (Reward Store)")
