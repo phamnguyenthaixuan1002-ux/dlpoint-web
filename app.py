@@ -2039,41 +2039,19 @@ def show_leaderboard_page():
                 
                 # Phân loại màu sắc theo Thứ hạng
                 if rank == 1:
-                    bg = "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)" # Vàng Gold
-                    color = "#8B6508"
-                    icon = "🏆"
-                    border = "border: 2px solid #DAA520; box-shadow: 0 4px 15px rgba(218,165,32,0.4);"
+                    bg, color, icon, border = "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)", "#8B6508", "🏆", "border: 2px solid #DAA520; box-shadow: 0 4px 15px rgba(218,165,32,0.4);"
                 elif rank == 2:
-                    bg = "linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%)" # Bạc Silver
-                    color = "#424242"
-                    icon = "🥈"
-                    border = "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
+                    bg, color, icon, border = "linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%)", "#424242", "🥈", "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
                 elif rank == 3:
-                    bg = "linear-gradient(135deg, #F4A460 0%, #CD853F 100%)" # Đồng Bronze
-                    color = "#5C3A21"
-                    icon = "🥉"
-                    border = "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
+                    bg, color, icon, border = "linear-gradient(135deg, #F4A460 0%, #CD853F 100%)", "#5C3A21", "🥉", "box-shadow: 0 4px 10px rgba(0,0,0,0.1);"
                 else:
-                    bg = "#ffffff"
-                    color = "#333333"
-                    icon = "🏅"
-                    border = "border-left: 5px solid #bdc3c7; border-top: 1px solid #eee; border-bottom: 1px solid #eee; border-right: 1px solid #eee;"
+                    bg, color, icon, border = "#ffffff", "#333333", "🏅", "border-left: 5px solid #bdc3c7; border-top: 1px solid #eee; border-bottom: 1px solid #eee; border-right: 1px solid #eee;"
 
-                # Khung HTML cho mỗi Tổ
-                html_teams += f"""
-                <div style='background: {bg}; padding: 15px 20px; border-radius: 12px; {border} display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;'>
-                    <div style='font-size: 18px; font-weight: bold; color: {color};'>
-                        <span style='font-size: 24px; vertical-align: middle;'>{icon}</span> 
-                        Hạng {rank}: Tổ {ten_to}
-                    </div>
-                    <div style='font-size: 22px; font-weight: 900; color: {color};'>
-                        {diem_tb:.1f} <span style='font-size: 14px; font-weight: normal;'>điểm</span>
-                    </div>
-                </div>
-                """
+                # (VIẾT TRÊN 1 DÒNG ĐỂ TRÁNH BỊ LỖI THỤT LỀ MARKDOWN)
+                html_teams += f"<div style='background: {bg}; padding: 15px 20px; border-radius: 12px; {border} display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;'><div style='font-size: 18px; font-weight: bold; color: {color};'><span style='font-size: 24px; vertical-align: middle;'>{icon}</span> Hạng {rank}: Tổ {ten_to}</div><div style='font-size: 22px; font-weight: 900; color: {color};'>{diem_tb:.1f} <span style='font-size: 14px; font-weight: normal;'>điểm</span></div></div>"
+                
             html_teams += "</div>"
             st.markdown(html_teams, unsafe_allow_html=True)
-
     # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
     st.markdown("<br>", unsafe_allow_html=True)
     
