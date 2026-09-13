@@ -339,7 +339,7 @@ def show_class_management():
                     if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
                         st.toast("Đã lưu thành công!", icon="✅")
                         if f"ai_phan_hoi_{hs_id}" in st.session_state: del st.session_state[f"ai_phan_hoi_{hs_id}"]
-# --- HÀM 8: GHI NHẬN NHANH (NÂNG CẤP TÍCH HỢP SỐ LẦN VI PHẠM/KHEN THƯỞNG) ---
+# --- HÀM 8: GHI NHẬN NHANH (GIAO DIỆN HỢP NHẤT - KHÔNG GIẬT TRANG) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -348,164 +348,138 @@ def show_quick_record_page():
     role, aclass, agroup = user['role'], user['class'], user['group']
     
     if role == 'bcs':
-        st.info(f"🔒 **Chế độ Tổ trưởng:** Bạn đang ghi nhận cho các thành viên thuộc **Tổ {agroup} - Lớp {aclass}**.")
+        st.info(f"🔒 **Chế độ Tổ trưởng:** Ghi nhận cho các thành viên **Tổ {agroup} - Lớp {aclass}**.")
     
     raw_students = get_cached_students(role, aclass, agroup)
     if not raw_students:
         st.warning("Không có học sinh nào trong phạm vi quản lý của bạn.")
         return
 
-    student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
-    
+    # Chuẩn bị dữ liệu Sự kiện
     all_events = get_cached_events()
-    event_dict = {}
     event_list_for_table = [] 
     for ev in all_events:
         ten, loai, diem = ev[1], ev[2], ev[3]
-        diem_str = f"+{diem}đ" if diem > 0 else f"{diem}đ"
+        diem_str = f"+{diem}" if diem > 0 else f"{diem}"
         icon = "🟢" if loai == "Khen thưởng" else "🔴"
-        label = f"{icon} {ten} ({diem_str})"
-        event_dict[label] = (ten, loai, diem)
-        
-        # <<< ĐIỂM ĐỔI MỚI 1: Thay "Chọn: False" thành "Số lần: 0" >>>
-        event_list_for_table.append({"Số lần": 0, "Loại": icon, "Tên Sự Kiện": ten, "Điểm gốc": diem_str})
+        event_list_for_table.append({"Số lần": 0, "Loại": icon, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
 
-    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_v6")
+    # Cấu hình Ngày
+    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_unified")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
 
-    tab1, tab2 = st.tabs(["👥 1 Lỗi/Khen -> Nhiều Học sinh", "👤 1 Học sinh -> Nhiều Lỗi/Khen"])
+    # MẸO: Dùng session_state để tạo "chìa khóa" reset bảng sau khi lưu thành công
+    if 'reset_table_key' not in st.session_state:
+        st.session_state.reset_table_key = 0
+
+    st.info("💡 **Cách dùng siêu nhanh:** (1) Tick chọn một hoặc nhiều Học sinh bên trái. (2) Tăng 'Số lần' ở một hoặc nhiều Sự kiện bên phải. (3) Bấm Ghi nhận.")
+
+    # Chia 2 cột tỷ lệ 1:1.2
+    col_hs, col_ev = st.columns([1, 1.2], gap="large")
 
     # ==========================================
-    # KỊCH BẢN 1: 1 SỰ KIỆN -> NHIỀU HS
+    # CỘT TRÁI: CHỌN HỌC SINH (BẢNG CHECKBOX)
     # ==========================================
-    with tab1:
-        st.write("💡 **Bước 1:** Chọn sự kiện ở trên. **Bước 2:** Tick [x] vào học sinh ở bảng dưới.")
-        
-        col1_t1, col2_t1 = st.columns([3, 1])
-        with col1_t1:
-            selected_event_1 = st.selectbox("1. Chọn Sự kiện cần ghi nhận:", options=["-- Chọn Sự kiện --"] + list(event_dict.keys()), key="sb_event_tab1_v6")
-        with col2_t1:
-            # <<< ĐIỂM ĐỔI MỚI 2: Thêm ô nhập số lần cho Kịch bản 1 >>>
-            so_lan_ap_dung = st.number_input("Số lần lặp lại:", min_value=1, max_value=20, value=1, step=1, key="num_lan_tab1")
-
+    with col_hs:
+        st.write("🧑‍🎓 **1. Đánh dấu [x] chọn Học sinh:**")
         df_hs = pd.DataFrame(raw_students, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])
         df_hs.insert(0, "Chọn", False)
         df_hs.insert(1, "STT", range(1, len(df_hs) + 1))
         
+        # Gắn key động để tự reset khi cần
+        key_hs = f"editor_hs_unified_{st.session_state.reset_table_key}"
+        
         edited_hs_df = st.data_editor(
             df_hs[["Chọn", "STT", "Họ Tên", "Tổ", "ID"]],
             hide_index=True,
-            column_config={"Chọn": st.column_config.CheckboxColumn("Tích", required=True), "ID": None, "STT": st.column_config.NumberColumn(disabled=True, width="small"), "Họ Tên": st.column_config.TextColumn(disabled=True), "Tổ": st.column_config.TextColumn(disabled=True, width="small")},
+            column_config={
+                "Chọn": st.column_config.CheckboxColumn("Tích", required=True), 
+                "ID": None, 
+                "STT": st.column_config.NumberColumn(disabled=True, width="small"), 
+                "Họ Tên": st.column_config.TextColumn(disabled=True), 
+                "Tổ": st.column_config.TextColumn(disabled=True, width="small")
+            },
             disabled=["STT", "Họ Tên", "Tổ", "ID"],
-            use_container_width=True, height=400, key="editor_hs_quick_v6"
+            use_container_width=True, height=500, key=key_hs
         )
         
+        # Lọc ra danh sách ID HS được chọn
         selected_rows_hs = edited_hs_df[edited_hs_df["Chọn"] == True]
         ids_to_apply = selected_rows_hs["ID"].tolist()
-        
-        if len(ids_to_apply) > 0: st.success(f"Đang chọn **{len(ids_to_apply)}** học sinh.")
-            
-        if st.button("🚀 XÁC NHẬN GHI NHẬN HÀNG LOẠT", type="primary", width="stretch", key="btn_tab1_v6"):
-            if selected_event_1 != "-- Chọn Sự kiện --" and len(ids_to_apply) > 0:
-                ten_sk, loai_sk, diem_sk = event_dict[selected_event_1]
-                
-                # Tính toán điểm và mô tả dựa trên số lần
-                diem_final = diem_sk * so_lan_ap_dung
-                mo_ta_final = f"{ten_sk} ({so_lan_ap_dung} lần)" if so_lan_ap_dung > 1 else ten_sk
+        names_to_apply = selected_rows_hs["Họ Tên"].tolist()
 
-                count = 0
-                with st.spinner("Đang lưu dữ liệu..."):
+    # ==========================================
+    # CỘT PHẢI: CHỌN SỰ KIỆN & SỐ LẦN
+    # ==========================================
+    with col_ev:
+        st.write("📋 **2. Bấm (+) điền số lần Sự kiện:**")
+        df_ev = pd.DataFrame(event_list_for_table)
+        
+        key_ev = f"editor_ev_unified_{st.session_state.reset_table_key}"
+        
+        edited_ev_df = st.data_editor(
+            df_ev,
+            hide_index=True,
+            column_config={
+                "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d"),
+                "Loại": st.column_config.TextColumn(disabled=True, width="small"),
+                "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                "Điểm gốc": None, # Ẩn cột dữ liệu gốc đi cho gọn
+                "Loại gốc": None  # Ẩn cột dữ liệu gốc đi cho gọn
+            },
+            disabled=["Loại", "Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
+            use_container_width=True, height=500, key=key_ev
+        )
+        
+        # Lọc ra các sự kiện có số lần > 0
+        selected_rows_ev = edited_ev_df[edited_ev_df["Số lần"] > 0]
+
+    # ==========================================
+    # KHU VỰC XÁC NHẬN VÀ LƯU DỮ LIỆU
+    # ==========================================
+    st.markdown("---")
+    
+    # Hiển thị tóm tắt trước khi lưu
+    sl_hs = len(ids_to_apply)
+    sl_sk = selected_rows_ev["Số lần"].sum()
+    
+    if sl_hs > 0 and sl_sk > 0:
+        st.info(f"👉 Sắp áp dụng **{sl_sk}** lượt sự kiện cho **{sl_hs}** học sinh đã chọn.")
+    
+    # Nút bấm trung tâm
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+    with col_btn2:
+        if st.button("🚀 XÁC NHẬN GHI NHẬN", type="primary", use_container_width=True):
+            if sl_hs == 0 or sl_sk == 0:
+                st.error("👆 Thầy/Cô cần tick chọn ít nhất 1 Học sinh (Bảng trái) VÀ tăng số lần ở ít nhất 1 Sự kiện (Bảng phải).")
+            else:
+                count_luu = 0
+                with st.spinner("Đang xử lý dữ liệu..."):
+                    # Vòng lặp kép: Quét từng HS, áp dụng từng sự kiện
                     for hs_id in ids_to_apply:
-                        if them_su_kien_ren_luyen_db(hs_id, mo_ta_final, loai_sk, diem_final, ngay_tao_str): count += 1
-                st.toast(f"✅ Đã ghi nhận {ten_sk} (x{so_lan_ap_dung}) cho {count} học sinh!", icon="🎉")
-            else:
-                st.error("👆 Vui lòng chọn 1 Sự kiện và tick chọn ít nhất 1 Học sinh.")
-
-    # ==========================================
-    # KỊCH BẢN 2: 1 HỌC SINH -> NHIỀU SỰ KIỆN (BẢNG KÉP CÓ SỐ LẦN)
-    # ==========================================
-    with tab2:
-        st.write("💡 **Bước 1:** Bấm vào 1 dòng để chọn học sinh. **Bước 2:** Bấm dấu (+) để tăng số lần ở các Lỗi/Khen bên cạnh.")
-        
-        col2_1, col2_2 = st.columns([1.2, 1.5], gap="medium")
-        
-        with col2_1:
-            st.write("**1. Bấm Chọn 1 Học sinh:**")
-            df_hs_tab2 = pd.DataFrame(raw_students, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])
-            df_hs_tab2.insert(0, "STT", range(1, len(df_hs_tab2) + 1))
-            
-            selection_hs = st.dataframe(
-                df_hs_tab2[["STT", "Họ Tên", "Tổ", "ID"]],
-                hide_index=True,
-                column_config={"ID": None, "STT": st.column_config.NumberColumn(width="small"), "Tổ": st.column_config.TextColumn(width="small")},
-                selection_mode="single-row",
-                on_select="rerun", 
-                use_container_width=True, height=450, key="dt_hs_tab2_v6"
-            )
-            
-            selected_hs_id = None
-            selected_hs_name = None
-            if len(selection_hs.selection.rows) > 0:
-                selected_index = selection_hs.selection.rows[0]
-                selected_hs_id = int(df_hs_tab2.iloc[selected_index]['ID'])
-                selected_hs_name = df_hs_tab2.iloc[selected_index]['Họ Tên']
-                st.success(f"Đang chọn: **{selected_hs_name}**")
-            else:
-                st.warning("👈 Vui lòng chạm vào tên 1 học sinh ở bảng trên.")
-
-        with col2_2:
-            st.write("**2. Điền số lần vi phạm/khen thưởng:**")
-            df_ev = pd.DataFrame(event_list_for_table)
-            
-            # <<< ĐIỂM ĐỔI MỚI 3: Thay đổi cấu hình cột thành NumberColumn >>>
-            edited_ev_df = st.data_editor(
-                df_ev,
-                hide_index=True,
-                column_config={
-                    "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d"),
-                    "Loại": st.column_config.TextColumn(disabled=True, width="small"),
-                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
-                    "Điểm gốc": st.column_config.TextColumn(disabled=True, width="small")
-                },
-                disabled=["Loại", "Tên Sự Kiện", "Điểm gốc"], 
-                use_container_width=True, 
-                height=450, 
-                key="editor_ev_quick_v6"
-            )
-            
-            # Lọc ra các sự kiện có số lần > 0
-            selected_rows_ev = edited_ev_df[edited_ev_df["Số lần"] > 0]
-
-            if not selected_rows_ev.empty: 
-                tong_so_su_kien = selected_rows_ev["Số lần"].sum()
-                st.info(f"Đang chuẩn bị ghi nhận **{tong_so_su_kien}** lượt sự kiện.")
-
-            if st.button("🚀 XÁC NHẬN GHI NHẬN CÁC SỰ KIỆN", type="primary", width="stretch", key="btn_tab2_v6"):
-                if selected_hs_id is not None and not selected_rows_ev.empty:
-                    count = 0
-                    with st.spinner("Đang lưu dữ liệu..."):
-                        # Duyệt qua từng dòng có số lần > 0
-                        for index, row in selected_rows_ev.iterrows():
-                            ev_name = row["Tên Sự Kiện"]
-                            so_lan = int(row["Số lần"])
+                        for _, row_ev in selected_rows_ev.iterrows():
+                            ev_name = row_ev["Tên Sự Kiện"]
+                            so_lan = int(row_ev["Số lần"])
+                            loai_sk = row_ev["Loại gốc"]
+                            diem_goc = int(row_ev["Điểm gốc"])
                             
-                            event_info = next((item for item in all_events if item[1] == ev_name), None)
-                            if event_info:
-                                loai_sk = event_info[2]
-                                diem_goc = event_info[3]
-                                
-                                # Tính toán điểm và mô tả theo số lần
-                                diem_final = diem_goc * so_lan
-                                mo_ta_final = f"{ev_name} ({so_lan} lần)" if so_lan > 1 else ev_name
-                                
-                                if them_su_kien_ren_luyen_db(selected_hs_id, mo_ta_final, loai_sk, diem_final, ngay_tao_str): 
-                                    count += 1
-                    
-                    hs_ten_ngan = selected_hs_name.split("(")[0].strip()
-                    st.toast(f"✅ Đã ghi nhận các sự kiện cho {hs_ten_ngan}!", icon="🎉")
+                            # Tính toán tổng điểm và chuỗi mô tả
+                            diem_final = diem_goc * so_lan
+                            mo_ta_final = f"{ev_name} ({so_lan} lần)" if so_lan > 1 else ev_name
+                            
+                            # Gọi hàm CSDL
+                            if them_su_kien_ren_luyen_db(hs_id, mo_ta_final, loai_sk, diem_final, ngay_tao_str): 
+                                count_luu += 1
+                
+                if count_luu > 0:
+                    st.success(f"✅ HOÀN TẤT! Đã lưu {count_luu} bản ghi dữ liệu thành công.")
+                    st.balloons()
+                    # MẸO: Tăng biến key lên 1 để Streamlit tự động "làm sạch" 2 bảng (bỏ tick và reset số về 0)
+                    st.session_state.reset_table_key += 1
+                    st.rerun() # Tải lại giao diện ngay lập tức
                 else:
-                    st.error("👆 Lỗi: Thầy/Cô phải (1) Bấm chọn học sinh và (2) Tăng 'Số lần' ở ít nhất 1 sự kiện.")
+                    st.error("Có lỗi xảy ra khi lưu CSDL.")
 # --- HÀM 4: GHI NHẬN KỶ LUẬT (TT19) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật (Theo Thông tư 19)")
