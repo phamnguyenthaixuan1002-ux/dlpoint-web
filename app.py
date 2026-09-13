@@ -1977,6 +1977,7 @@ def show_reward_store_page():
             st.write("<br><br>", unsafe_allow_html=True)
 
     # ==========================================
+    # ==========================================
     # TAB 2: PHÁT XU THƯỞNG (GVCN THAO TÁC CUỐI TUẦN)
     # ==========================================
     with tab_phatxu:
@@ -1990,13 +1991,14 @@ def show_reward_store_page():
         with col_px1:
             week_num = st.number_input("Chọn tuần để quét:", min_value=1, max_value=52, value=1, step=1)
             
-        st.markdown("Quy tắc thưởng: **Xuất sắc = +20 Xu** | **Tốt = +10 Xu**")
+        # <<< SỬA ĐỔI: HIỂN THỊ RÕ THANG ĐIỂM MỚI TẠI ĐÂY >>>
+        st.markdown("Quy tắc thưởng: **Xuất sắc (≥ 115đ) = +20 Xu** | **Tốt (100 - 114đ) = +10 Xu**")
         
-        if st.button("🔍 Quét kết quả & Phát Xu hàng loạt", type="primary"):
+        if st.button("🔍 Quét kết quả & Phát Xu hàng loạt", type="primary", width="stretch"):
             start_w, end_w = get_week_dates_by_number(week_num)
             if not start_w: st.error("Lỗi ngày tháng."); return
             
-            with st.spinner("Đang tính điểm xếp loại tuần..."):
+            with st.spinner("Đang tính điểm xếp loại rèn luyện tuần..."):
                 all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
                 
                 events_by_student = {}
@@ -2005,8 +2007,11 @@ def show_reward_store_page():
                 phat_xu_count = 0
                 for hs in raw_students:
                     hs_id = hs[0]
+                    # Điểm bắt đầu là 100
                     score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs_id, []))
-                    xep_loai = xep_loai_hanh_kiem(max(0, score))
+                    
+                    # Hệ thống sẽ tự dùng thang điểm 115 mới khai báo ở config.py
+                    xep_loai = xep_loai_hanh_kiem(max(0, score)) 
                     
                     xu_thuong = 0
                     if xep_loai == "Xuất sắc": xu_thuong = 20
@@ -2016,7 +2021,7 @@ def show_reward_store_page():
                         cap_nhat_xu_thuong_db(hs_id, xu_thuong)
                         # Ghi nhận vào lịch sử
                         ngay_tao = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        them_su_kien_ren_luyen_db(hs_id, f"🪙 Thưởng Xu Tuần {week_num} (Xếp loại {xep_loai})", "Khen thưởng", 0, ngay_tao)
+                        them_su_kien_ren_luyen_db(hs_id, f"🪙 Thưởng Xu Tuần {week_num} (Xếp loại Rèn luyện {xep_loai})", "Khen thưởng", 0, ngay_tao)
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
