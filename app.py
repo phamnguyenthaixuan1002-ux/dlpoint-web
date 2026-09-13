@@ -29,7 +29,8 @@ from database import (
     xoa_nhieu_danh_muc_su_kien_db, # Của lần trước
     cap_nhat_xu_thuong_db, 
     lay_so_du_xu_db, #<<< THÊM 2 HÀM NÀY
-    xoa_su_kien_ren_luyen_db  # <<< THÊM HÀM NÀY VÀO ĐÂY# 
+    xoa_su_kien_ren_luyen_db,  # <<< THÊM HÀM NÀY VÀO ĐÂY# 
+    luu_nhat_ky_phan_hoi_thang_db, lay_lich_su_phan_hoi_db # <<< THÊM 2 HÀM NÀY
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
@@ -335,42 +336,82 @@ def show_class_management():
                 else: 
                     st.info("Chưa có sự kiện nào.")
 
-            # === TAB MỤC TIÊU ===
+            # === TAB 3: MỤC TIÊU & PHẢN HỒI (LƯU THEO LỊCH SỬ THÁNG) ===
             with tab_muc_tieu:
-                muc_tieu_cu = info.get('muc_tieu_thang') or ""
-                phan_hoi_cu = info.get('phan_hoi_gvcn') or ""
+                st.write("📌 **Viết nhận xét & Đặt mục tiêu cho tháng:**")
                 
-                if st.button("✨ Trợ lý AI viết nhận xét", type="secondary", width="stretch", key=f"ai_{hs_id}"):
-                    if "GEMINI_API_KEY" not in st.secrets: st.error("Chưa cấu hình API Key!")
+                # 1. Chọn tháng để viết nhận xét (Mặc định là tháng hiện tại)
+                now = datetime.now()
+                thang_hien_tai = f"{now.month:02d}/{now.year}"
+                
+                # Lấy lịch sử cũ từ CSDL để hiển thị
+                lich_su_ph = lay_lich_su_phan_hoi_db(hs_id)
+                dict_ph = {row[0]: {"muc_tieu": row[1], "phan_hoi": row[2]} for row in lich_su_ph}
+                
+                # Danh sách các tháng để chọn (Tháng hiện tại + Các tháng đã có lịch sử)
+                danh_sach_thang = list(set([thang_hien_tai] + list(dict_ph.keys())))
+                danh_sach_thang.sort(reverse=True) # Sắp xếp mới nhất lên đầu
+                
+                selected_month = st.selectbox("Chọn kỳ đánh giá:", danh_sach_thang, key=f"month_sel_{hs_id}")
+                
+                # Tải dữ liệu của tháng được chọn lên Form
+                muc_tieu_cu = dict_ph.get(selected_month, {}).get("muc_tieu", "")
+                phan_hoi_cu = dict_ph.get(selected_month, {}).get("phan_hoi", "")
+                
+                # --- NÚT GỌI TRỢ LÝ AI (Chỉ phân tích dữ liệu của tháng được chọn) ---
+                if st.button(f"✨ Nhờ AI viết nhận xét cho {selected_month}", type="secondary", width="stretch", key=f"ai_btn_{hs_id}"):
+                    if "GEMINI_API_KEY" not in st.secrets:
+                        st.error("Chưa cấu hình API Key của Google Gemini!")
                     else:
-                        with st.spinner("🤖 AI đang soạn lời phê..."):
+                        with st.spinner("🤖 AI đang đọc hồ sơ và soạn lời phê..."):
                             try:
                                 from google import genai
                                 import calendar
                                 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                                now = datetime.now()
-                                start_m = datetime(now.year, now.month, 1).date()
-                                _, last_day = calendar.monthrange(now.year, now.month)
-                                end_m = datetime(now.year, now.month, last_day).date()
+                                
+                                # Lọc dữ liệu đúng cái tháng đang được chọn
+                                m, y = map(int, selected_month.split('/'))
+                                start_m = datetime(y, m, 1).date()
+                                _, last_day = calendar.monthrange(y, m)
+                                end_m = datetime(y, m, last_day).date()
+                                
                                 sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
+                                
                                 diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
                                 kt_str = ", ".join([e[4] for e in sk_thang if e[5] == "Khen thưởng"]) or "Chưa có nổi bật"
                                 vp_str = ", ".join([e[4] for e in sk_thang if e[5] == "Vi phạm"]) or "Không vi phạm"
                                 
-                                prompt = f"Đóng vai là GVCN. Hãy viết 1 đoạn nhận xét cuối tháng (3-4 câu) cho học sinh {info.get('ten')}. Điểm rèn luyện: {diem_thang}/100. Ưu điểm: {kt_str}. Khuyết điểm: {vp_str}. Yêu cầu: Giọng chuẩn mực sư phạm, xưng 'thầy/cô' gọi 'em', động viên khen ngợi, nhắc nhở khéo léo. Trả về đúng đoạn văn."
+                                prompt = f"Đóng vai là GVCN. Hãy viết 1 đoạn nhận xét cuối tháng (3-4 câu) cho học sinh {info.get('ten')}. Điểm rèn luyện tháng này: {diem_thang}/100. Ưu điểm: {kt_str}. Khuyết điểm: {vp_str}. Yêu cầu: Giọng chuẩn mực sư phạm, xưng 'thầy/cô' gọi 'em', động viên khen ngợi, nhắc nhở khéo léo. Trả về đúng đoạn văn."
                                 response = client.models.generate_content(model='gemini-3.6-flash', contents=prompt)
-                                st.session_state[f"ai_phan_hoi_{hs_id}"] = response.text
+                                
+                                st.session_state[f"ai_phan_hoi_{hs_id}_{selected_month}"] = response.text
                                 st.toast("AI đã viết xong!", icon="🎉")
                             except Exception as e: st.error(f"Lỗi AI: {e}")
 
-                hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}", phan_hoi_cu)
-                new_muc_tieu = st.text_area("🎯 Mục tiêu tháng tới:", value=muc_tieu_cu, height=80)
-                new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi:", value=hien_thi_phan_hoi, height=120)
+                hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}_{selected_month}", phan_hoi_cu)
                 
-                if st.button("💾 Lưu Nhận xét", type="primary", width="stretch", key=f"save_{hs_id}"):
-                    if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
-                        st.toast("Đã lưu thành công!", icon="✅")
-                        if f"ai_phan_hoi_{hs_id}" in st.session_state: del st.session_state[f"ai_phan_hoi_{hs_id}"]
+                # 2. Ô Nhập liệu
+                new_muc_tieu = st.text_area("🎯 Mục tiêu do Học sinh/GVCN đề ra:", value=muc_tieu_cu, height=80, key=f"mt_{hs_id}")
+                new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=hien_thi_phan_hoi, height=120, key=f"ph_{hs_id}")
+                
+                if st.button("💾 Lưu Nhận xét Tháng này", type="primary", width="stretch", key=f"save_ph_{hs_id}"):
+                    if luu_nhat_ky_phan_hoi_thang_db(hs_id, selected_month, new_muc_tieu, new_phan_hoi):
+                        st.success(f"✅ Đã lưu hồ sơ thành công cho tháng {selected_month}!")
+                        if f"ai_phan_hoi_{hs_id}_{selected_month}" in st.session_state: 
+                            del st.session_state[f"ai_phan_hoi_{hs_id}_{selected_month}"]
+                        st.rerun()
+
+                # 3. Khu vực hiển thị Lịch sử các tháng cũ (Dạng Dòng thời gian - Timeline)
+                st.markdown("---")
+                st.write("🕰️ **Lịch sử Phản hồi các tháng trước:**")
+                if lich_su_ph:
+                    for row in lich_su_ph:
+                        thang, mt, ph, ngay_cap_nhat = row[0], row[1], row[2], row[3]
+                        with st.expander(f"Tháng {thang} (Cập nhật: {ngay_cap_nhat.strftime('%d/%m/%Y')})", expanded=False):
+                            st.write(f"**🎯 Mục tiêu:** {mt if mt else 'Không có'}")
+                            st.write(f"**💬 Nhận xét:** {ph if ph else 'Không có'}")
+                else:
+                    st.info("Chưa có lịch sử nhận xét nào được lưu.")
 # --- HÀM 8: GHI NHẬN NHANH (GIAO DIỆN HỢP NHẤT - KHÔNG GIẬT TRANG) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
