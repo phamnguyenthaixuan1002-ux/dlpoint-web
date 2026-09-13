@@ -339,7 +339,7 @@ def show_class_management():
                     if luu_muc_tieu_phan_hoi_db(hs_id, new_muc_tieu, new_phan_hoi):
                         st.toast("Đã lưu thành công!", icon="✅")
                         if f"ai_phan_hoi_{hs_id}" in st.session_state: del st.session_state[f"ai_phan_hoi_{hs_id}"]
-# --- HÀM 8: GHI NHẬN NHANH (NÂNG CẤP BẢNG TICK CHỌN CHO CẢ 2 TAB) ---
+# --- HÀM 8: GHI NHẬN NHANH (NÂNG CẤP GIAO DIỆN BẢNG TƯƠNG TÁC KÉP) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -347,11 +347,9 @@ def show_quick_record_page():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
     
-    # --- PHÂN QUYỀN TỔ TRƯỞNG Ở ĐÂY ---
     if role == 'bcs':
         st.info(f"🔒 **Chế độ Tổ trưởng:** Bạn đang ghi nhận cho các thành viên thuộc **Tổ {agroup} - Lớp {aclass}**.")
     
-    # 1. Tải dữ liệu siêu nhanh từ Cache (Đã tự động lọc theo role và group)
     raw_students = get_cached_students(role, aclass, agroup)
     if not raw_students:
         st.warning("Không có học sinh nào trong phạm vi quản lý của bạn.")
@@ -361,28 +359,27 @@ def show_quick_record_page():
     
     all_events = get_cached_events()
     event_dict = {}
-    event_list_for_table = [] # Danh sách dùng để tạo bảng Tab 2
+    event_list_for_table = [] 
     for ev in all_events:
         ten, loai, diem = ev[1], ev[2], ev[3]
         diem_str = f"+{diem}đ" if diem > 0 else f"{diem}đ"
         icon = "🟢" if loai == "Khen thưởng" else "🔴"
         label = f"{icon} {ten} ({diem_str})"
         event_dict[label] = (ten, loai, diem)
-        # Chuẩn bị dữ liệu cho bảng Tab 2
         event_list_for_table.append({"Chọn": False, "Loại": icon, "Tên Sự Kiện": ten, "Điểm": diem_str})
 
-    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_v4")
+    event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_v5")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
 
-    tab1, tab2 = st.tabs(["👥 Nhiều Học sinh -> Cùng 1 Lỗi/Khen", "👤 1 Học sinh -> Cùng lúc Nhiều Lỗi/Khen"])
+    tab1, tab2 = st.tabs(["👥 1 Lỗi/Khen -> Nhiều Học sinh", "👤 1 Học sinh -> Nhiều Lỗi/Khen"])
 
     # ==========================================
-    # KỊCH BẢN 1: 1 SỰ KIỆN -> NHIỀU HS (Bảng Checkbox HS)
+    # KỊCH BẢN 1: 1 SỰ KIỆN -> NHIỀU HS (Giữ nguyên)
     # ==========================================
     with tab1:
-        st.write("💡 Chọn sự kiện, sau đó tick [x] vào ô vuông cạnh tên các học sinh ở bảng dưới.")
-        selected_event_1 = st.selectbox("1. Chọn Sự kiện cần ghi nhận:", options=["-- Chọn Sự kiện --"] + list(event_dict.keys()), key="sb_event_tab1_v4")
+        st.write("💡 **Bước 1:** Chọn sự kiện ở trên. **Bước 2:** Tick [x] vào học sinh ở bảng dưới.")
+        selected_event_1 = st.selectbox("1. Chọn Sự kiện cần ghi nhận:", options=["-- Chọn Sự kiện --"] + list(event_dict.keys()), key="sb_event_tab1_v5")
         
         df_hs = pd.DataFrame(raw_students, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])
         df_hs.insert(0, "Chọn", False)
@@ -391,9 +388,9 @@ def show_quick_record_page():
         edited_hs_df = st.data_editor(
             df_hs[["Chọn", "STT", "Họ Tên", "Tổ", "ID"]],
             hide_index=True,
-            column_config={"Chọn": st.column_config.CheckboxColumn("Tích", required=True), "ID": None, "STT": st.column_config.NumberColumn(disabled=True), "Họ Tên": st.column_config.TextColumn(disabled=True), "Tổ": st.column_config.TextColumn(disabled=True)},
+            column_config={"Chọn": st.column_config.CheckboxColumn("Tích", required=True), "ID": None, "STT": st.column_config.NumberColumn(disabled=True, width="small"), "Họ Tên": st.column_config.TextColumn(disabled=True), "Tổ": st.column_config.TextColumn(disabled=True, width="small")},
             disabled=["STT", "Họ Tên", "Tổ", "ID"],
-            use_container_width=True, height=350, key="editor_hs_quick"
+            use_container_width=True, height=400, key="editor_hs_quick_v5"
         )
         
         selected_rows_hs = edited_hs_df[edited_hs_df["Chọn"] == True]
@@ -401,7 +398,7 @@ def show_quick_record_page():
         
         if len(ids_to_apply) > 0: st.success(f"Đang chọn **{len(ids_to_apply)}** học sinh.")
             
-        if st.button("🚀 XÁC NHẬN GHI NHẬN HÀNG LOẠT", type="primary", width="stretch", key="btn_tab1_v4"):
+        if st.button("🚀 XÁC NHẬN GHI NHẬN HÀNG LOẠT", type="primary", width="stretch", key="btn_tab1_v5"):
             if selected_event_1 != "-- Chọn Sự kiện --" and len(ids_to_apply) > 0:
                 ten_sk, loai_sk, diem_sk = event_dict[selected_event_1]
                 count = 0
@@ -409,56 +406,87 @@ def show_quick_record_page():
                     for hs_id in ids_to_apply:
                         if them_su_kien_ren_luyen_db(hs_id, ten_sk, loai_sk, diem_sk, ngay_tao_str): count += 1
                 st.toast(f"✅ Đã ghi nhận {ten_sk} cho {count} học sinh!", icon="🎉")
-                st.rerun()
             else:
                 st.error("👆 Vui lòng chọn 1 Sự kiện và tick chọn ít nhất 1 Học sinh.")
 
     # ==========================================
-    # KỊCH BẢN 2: 1 HỌC SINH -> NHIỀU SỰ KIỆN (Bảng Checkbox Sự kiện)
+    # KỊCH BẢN 2: 1 HỌC SINH -> NHIỀU SỰ KIỆN (BẢNG KÉP MỚI)
     # ==========================================
     with tab2:
-        st.write("💡 Chọn 1 Học sinh, sau đó tick [x] vào các Lỗi/Khen ở bảng dưới.")
-        selected_student_2 = st.selectbox("1. Chọn Học sinh:", options=["-- Chọn --"] + list(student_dict.keys()), key="sb_hs_tab2_v4")
+        st.write("💡 **Bước 1:** Bấm vào 1 dòng để chọn học sinh. **Bước 2:** Tick [x] vào các Lỗi/Khen ở bảng bên cạnh.")
         
-        df_ev = pd.DataFrame(event_list_for_table)
+        # Chia 2 cột: Trên máy tính sẽ nằm ngang, trên điện thoại tự động xếp dọc (Bảng HS ở trên, Bảng Lỗi ở dưới)
+        col2_1, col2_2 = st.columns([1.2, 1.5], gap="medium")
         
-        st.write("2. Đánh dấu tick vào sự kiện:")
-        edited_ev_df = st.data_editor(
-            df_ev,
-            hide_index=True,
-            column_config={
-                "Chọn": st.column_config.CheckboxColumn("Tích", required=True),
-                "Loại": st.column_config.TextColumn(disabled=True, width="small"),
-                "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
-                "Điểm": st.column_config.TextColumn(disabled=True, width="small")
-            },
-            disabled=["Loại", "Tên Sự Kiện", "Điểm"], # Khóa không cho sửa chữ, chỉ cho tick
-            use_container_width=True, height=350, key="editor_ev_quick"
-        )
-        
-        # Lọc ra tên các sự kiện được tick
-        selected_rows_ev = edited_ev_df[edited_ev_df["Chọn"] == True]
-        events_to_apply = selected_rows_ev["Tên Sự Kiện"].tolist()
-
-        if len(events_to_apply) > 0: st.success(f"Đang chọn **{len(events_to_apply)}** sự kiện.")
-
-        if st.button("🚀 XÁC NHẬN GHI NHẬN CÁC SỰ KIỆN", type="primary", width="stretch", key="btn_tab2_v4"):
-            if selected_student_2 != "-- Chọn --" and len(events_to_apply) > 0:
-                hs_id = student_dict[selected_student_2]
-                count = 0
-                with st.spinner("Đang lưu dữ liệu..."):
-                    # Phải lặp lại all_events để lấy chính xác loại và điểm dựa theo tên
-                    for ev_name in events_to_apply:
-                        # Tìm event tương ứng trong danh sách gốc
-                        event_info = next((item for item in all_events if item[1] == ev_name), None)
-                        if event_info:
-                            if them_su_kien_ren_luyen_db(hs_id, event_info[1], event_info[2], event_info[3], ngay_tao_str): count += 1
-                
-                hs_ten_ngan = selected_student_2.split("(")[0].strip()
-                st.toast(f"✅ Đã ghi nhận {count} sự kiện cho {hs_ten_ngan}!", icon="🎉")
-                st.rerun()
+        with col2_1:
+            st.write("**1. Bấm Chọn 1 Học sinh:**")
+            df_hs_tab2 = pd.DataFrame(raw_students, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])
+            df_hs_tab2.insert(0, "STT", range(1, len(df_hs_tab2) + 1))
+            
+            # Bảng tương tác (Click to select)
+            selection_hs = st.dataframe(
+                df_hs_tab2[["STT", "Họ Tên", "Tổ", "ID"]],
+                hide_index=True,
+                column_config={
+                    "ID": None, # Giấu ID đi
+                    "STT": st.column_config.NumberColumn(width="small"),
+                    "Tổ": st.column_config.TextColumn(width="small")
+                },
+                selection_mode="single-row", # Cấu hình cho phép bấm chọn 1 dòng
+                on_select="rerun", # Bấm vào là web cập nhật ngay
+                use_container_width=True, 
+                height=450,
+                key="dt_hs_tab2_v5"
+            )
+            
+            # Lấy thông tin học sinh vừa được bấm chọn
+            selected_hs_id = None
+            selected_hs_name = None
+            if len(selection_hs.selection.rows) > 0:
+                selected_index = selection_hs.selection.rows[0]
+                selected_hs_id = int(df_hs_tab2.iloc[selected_index]['ID'])
+                selected_hs_name = df_hs_tab2.iloc[selected_index]['Họ Tên']
+                st.success(f"Đang chọn: **{selected_hs_name}**")
             else:
-                st.error("👆 Vui lòng chọn 1 học sinh và tick chọn ít nhất 1 sự kiện.")
+                st.warning("👈 Vui lòng chạm vào tên 1 học sinh ở bảng trên.")
+
+        with col2_2:
+            st.write("**2. Đánh dấu tick vào các sự kiện:**")
+            df_ev = pd.DataFrame(event_list_for_table)
+            edited_ev_df = st.data_editor(
+                df_ev,
+                hide_index=True,
+                column_config={
+                    "Chọn": st.column_config.CheckboxColumn("Tích", required=True),
+                    "Loại": st.column_config.TextColumn(disabled=True, width="small"),
+                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                    "Điểm": st.column_config.TextColumn(disabled=True, width="small")
+                },
+                disabled=["Loại", "Tên Sự Kiện", "Điểm"], 
+                use_container_width=True, 
+                height=450, 
+                key="editor_ev_quick_v5"
+            )
+            
+            selected_rows_ev = edited_ev_df[edited_ev_df["Chọn"] == True]
+            events_to_apply = selected_rows_ev["Tên Sự Kiện"].tolist()
+
+            if len(events_to_apply) > 0: 
+                st.info(f"Đang chọn **{len(events_to_apply)}** sự kiện.")
+
+            if st.button("🚀 XÁC NHẬN GHI NHẬN CÁC SỰ KIỆN", type="primary", width="stretch", key="btn_tab2_v5"):
+                if selected_hs_id is not None and len(events_to_apply) > 0:
+                    count = 0
+                    with st.spinner("Đang lưu dữ liệu..."):
+                        for ev_name in events_to_apply:
+                            event_info = next((item for item in all_events if item[1] == ev_name), None)
+                            if event_info:
+                                if them_su_kien_ren_luyen_db(selected_hs_id, event_info[1], event_info[2], event_info[3], ngay_tao_str): 
+                                    count += 1
+                    
+                    st.toast(f"✅ Đã ghi nhận {count} sự kiện cho {selected_hs_name}!", icon="🎉")
+                else:
+                    st.error("👆 Lỗi: Thầy/Cô phải (1) Bấm chọn 1 học sinh ở bảng và (2) Tick ít nhất 1 sự kiện.")
 # --- HÀM 4: GHI NHẬN KỶ LUẬT (TT19) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật (Theo Thông tư 19)")
