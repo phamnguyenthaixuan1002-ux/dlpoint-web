@@ -878,3 +878,39 @@ def lay_so_du_xu_db(hs_id):
                     return result[0] if result else 0
     except Exception:
         return 0
+# --- CÁC HÀM QUẢN LÝ NHẬT KÝ PHẢN HỒI THEO THÁNG ---
+
+def luu_nhat_ky_phan_hoi_thang_db(hs_id, thang_nam, muc_tieu, phan_hoi):
+    """Lưu hoặc cập nhật nhận xét của 1 tháng cụ thể."""
+    sql = """
+        INSERT INTO nhat_ky_phan_hoi (hoc_sinh_id, thang_nam, muc_tieu, phan_hoi, ngay_cap_nhat)
+        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (hoc_sinh_id, thang_nam) 
+        DO UPDATE SET 
+            muc_tieu = EXCLUDED.muc_tieu,
+            phan_hoi = EXCLUDED.phan_hoi,
+            ngay_cap_nhat = CURRENT_TIMESTAMP;
+    """
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (hs_id, thang_nam, muc_tieu, phan_hoi))
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"Lỗi lưu nhật ký phản hồi: {e}")
+        return False
+
+def lay_lich_su_phan_hoi_db(hs_id):
+    """Lấy toàn bộ lịch sử nhận xét của học sinh, sắp xếp từ mới nhất đến cũ nhất."""
+    sql = "SELECT thang_nam, muc_tieu, phan_hoi, ngay_cap_nhat FROM nhat_ky_phan_hoi WHERE hoc_sinh_id = %s ORDER BY ngay_cap_nhat DESC"
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (hs_id,))
+                    return cursor.fetchall()
+        return []
+    except Exception:
+        return []
