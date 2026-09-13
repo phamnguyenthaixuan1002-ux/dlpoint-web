@@ -883,30 +883,49 @@ def show_summary_page():
 
                 # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
                 elif user['role'] == 'bcs':
-                    with st.expander("💬 Mở Trợ lý soạn Báo cáo Tổ (Gửi GVCN)"):
-                        st.info("Hệ thống đã tự động tổng hợp số liệu của Tổ. Em hãy copy và gửi báo cáo này cho Lớp trưởng hoặc GVCN nhé.")
+                    with st.expander("💬 Mở Trợ lý soạn Báo cáo Tổ (Dùng để đọc trong giờ Sinh hoạt)"):
+                        st.info("Hệ thống đã tự động tổng hợp số liệu. Em có thể cầm điện thoại, đọc nguyên văn bản báo cáo này trước lớp vào giờ sinh hoạt cuối tuần.")
                         
                         top_students_bcs = [hs['ten'] for hs in student_list[:3] if hs['diem'] > DIEM_KHOI_DAU]
                         vipham_dict_bcs = {}
                         for ev in all_events:
                             if ev[5] == 'Vi phạm': vipham_dict_bcs.setdefault(ev[1], []).append(ev[4])
-                        vipham_text_bcs = [f"{ten} ({', '.join(list(set(loi)))})" for ten, loi in vipham_dict_bcs.items()]
 
                         group_name = user['group'] or "..."
                         class_name = user['class'] or "..."
                         
-                        msg_bcs = f"📊 BÁO CÁO HOẠT ĐỘNG TỔ {group_name} - LỚP {class_name} (TUẦN {week_num})\n\n"
+                        # Xây dựng kịch bản báo cáo bằng lời nói
+                        msg_bcs = f"Kính thưa Thầy/Cô giáo chủ nhiệm cùng toàn thể các bạn trong lớp.\n"
+                        msg_bcs += f"Sau đây, em xin thay mặt Tổ {group_name} báo cáo tình hình thi đua của tổ trong Tuần {week_num} vừa qua như sau:\n\n"
+                        
+                        msg_bcs += "📌 1. ƯU ĐIỂM / ĐIỂM SÁNG:\n"
                         if top_students_bcs: 
-                            msg_bcs += f"✅ Biểu dương các bạn tích cực: {', '.join(top_students_bcs)}.\n\n"
+                            msg_bcs += f"- Nhìn chung các bạn có ý thức tốt. Đặc biệt biểu dương các bạn rất tích cực, đạt điểm thi đua cao là: {', '.join(top_students_bcs)}.\n\n"
+                        else:
+                            msg_bcs += "- Đa số các bạn trong tổ có ý thức chấp hành nội quy, đi học và trực nhật đầy đủ.\n\n"
                         
-                        if vipham_text_bcs: 
-                            msg_bcs += f"⚠️ Các bạn còn vi phạm trong tuần:\n- {';\n- '.join(vipham_text_bcs)}.\n\nĐề nghị các bạn rút kinh nghiệm vào tuần sau.\n\n"
+                        msg_bcs += "📌 2. HẠN CHẾ / TỒN TẠI:\n"
+                        if vipham_dict_bcs: 
+                            msg_bcs += "- Tuy nhiên, tổ vẫn còn một số tồn tại làm ảnh hưởng đến điểm thi đua chung. Cụ thể:\n"
+                            for ten, cac_loi in vipham_dict_bcs.items():
+                                loi_rut_gon = ", ".join(list(set(cac_loi)))
+                                msg_bcs += f"   + Bạn {ten} (Mắc lỗi: {loi_rut_gon}).\n"
+                            msg_bcs += "\n"
                         else: 
-                            msg_bcs += f"✨ Tuần này Tổ {group_name} thực hiện nề nếp rất tốt, không có bạn nào vi phạm!\n\n"
+                            msg_bcs += "- Rất đáng khen là tuần này tổ chúng ta thực hiện xuất sắc, không có bạn nào vi phạm nội quy!\n\n"
                             
-                        msg_bcs += "📌 Báo cáo chi tiết xem tại file đính kèm."
+                        msg_bcs += "📌 3. ĐỀ XUẤT:\n"
+                        if top_students_bcs:
+                            msg_bcs += "- Kính đề nghị Thầy/Cô tuyên dương các bạn có thành tích tốt để làm gương.\n"
+                        if vipham_dict_bcs:
+                            msg_bcs += "- Yêu cầu các bạn còn vi phạm nghiêm túc rút kinh nghiệm và sửa đổi. Nếu tuần sau tái phạm, tổ sẽ đề nghị Thầy/Cô xử lý kỷ luật.\n"
+                        else:
+                            msg_bcs += "- Mong các bạn trong tổ tiếp tục phát huy tinh thần kỷ luật tốt như tuần này.\n"
+
+                        msg_bcs += f"\nDạ, phần báo cáo của Tổ {group_name} đến đây là hết. Em xin cảm ơn Thầy/Cô và các bạn đã lắng nghe!"
                         
-                        st.text_area("Đoạn văn báo cáo (Có thể chỉnh sửa):", value=msg_bcs, height=200, key="txt_report_bcs")
+                        # Cho khung Text Area cao hơn một chút để dễ cầm đọc
+                        st.text_area("Văn bản báo cáo (Có thể chỉnh sửa thêm nếu cần):", value=msg_bcs, height=350, key="txt_report_bcs")
 
     # ==========================================
     # TAB 2: TỔNG KẾT THÁNG
