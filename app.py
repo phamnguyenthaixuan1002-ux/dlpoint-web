@@ -1994,19 +1994,40 @@ def show_leaderboard_page():
     for ev in all_events:
         events_by_student.setdefault(ev[0], []).append(ev)
         
+    # ==========================================
+    # THUẬT TOÁN TÍNH ĐIỂM VÀ TIÊU CHÍ PHỤ
+    # ==========================================
     student_list = []
     for hs_tuple in all_students:
         try:
             hs = dict(zip(["id"] + STUDENT_FIELDS_DB, hs_tuple))
-            score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs['id'], []))
+            hs_events = events_by_student.get(hs['id'], [])
+            
+            # 1. Tính tổng điểm
+            score = DIEM_KHOI_DAU + sum(e[6] for e in hs_events)
+            
+            # 2. Tính các tiêu chí phụ (Tie-breakers)
+            diem_cong = sum(e[6] for e in hs_events if e[6] > 0) # Tổng điểm cộng
+            so_lan_vp = sum(1 for e in hs_events if e[5] == "Vi phạm") # Số lần mắc lỗi
+            ten_chinh = hs['ten'].split()[-1].lower() if hs['ten'] else "" # Lấy tên để xếp A-Z
+            
             student_list.append({
                 'id': hs['id'], 'ten': hs['ten'], 'lop': hs['lop'], 'to': hs.get('to_nhiem_vu', '') or "Không rõ", 
-                'diem': score, 'anh_the': hs.get('anh_the_path', '')
+                'diem': score, 'anh_the': hs.get('anh_the_path', ''),
+                'diem_cong': diem_cong, 'so_lan_vp': so_lan_vp, 'ten_chinh': ten_chinh
             })
         except Exception as e:
             continue
     
-    student_list.sort(key=lambda x: x['diem'], reverse=True)
+    # 3. Sắp xếp thông minh đa tiêu chí:
+    # Dùng dấu (-) cho các tiêu chí muốn xếp giảm dần (Cao xếp trước)
+    # Dùng dấu (+) cho các tiêu chí muốn xếp tăng dần (Thấp/Ít xếp trước)
+    student_list.sort(key=lambda x: (
+        -x['diem'],         # Ưu tiên 1: Điểm tổng cao nhất
+        -x['diem_cong'],    # Ưu tiên 2: Điểm cộng nhiều nhất
+        x['so_lan_vp'],     # Ưu tiên 3: Số lần vi phạm ÍT nhất
+        x['ten_chinh']      # Ưu tiên 4: Tên theo vần A-Z
+    ))
 
     if not student_list:
         st.warning(f"Tuần {selected_week} chưa có dữ liệu rèn luyện nào để xếp hạng.")
