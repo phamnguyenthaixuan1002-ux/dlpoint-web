@@ -150,7 +150,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_info = None
 
-# --- HÀM 1: GIAO DIỆN ĐĂNG NHẬP ---
+# --- HÀM 1: GIAO DIỆN ĐĂNG NHẬP (ĐÃ KHÓA FORM CHỐNG LỖI) ---
 def show_login_page():
     st.title("🎓 Hệ thống Quản lý DLPOINT 2.0")
     st.markdown("---")
@@ -160,18 +160,28 @@ def show_login_page():
     
     with col2:
         st.subheader("Đăng nhập")
-        username = st.text_input("Tên đăng nhập")
-        password = st.text_input("Mật khẩu", type="password")
         
-        if st.button("Đăng nhập", width="stretch", type="primary"):
-            user = verify_user(username, password)
-            if user:
-                # Đăng nhập thành công, lưu thông tin vào session
-                st.session_state.logged_in = True
-                st.session_state.user_info = user
-                st.rerun() # Tải lại trang web
-            else:
-                st.error("Tên đăng nhập hoặc mật khẩu không đúng!")
+        # <<< SỬ DỤNG st.form ĐỂ KHÓA CHẶT QUÁ TRÌNH NHẬP LIỆU >>>
+        with st.form("form_dang_nhap"):
+            username = st.text_input("Tên đăng nhập")
+            password = st.text_input("Mật khẩu", type="password")
+            
+            # Nút Đăng nhập giờ đây là Nút Submit của Form
+            submitted = st.form_submit_button("Đăng nhập", type="primary", use_container_width=True)
+            
+            if submitted:
+                # Chỉ kiểm tra CSDL khi người dùng thực sự bấm nút
+                if not username or not password:
+                    st.warning("Vui lòng nhập đầy đủ tài khoản và mật khẩu.")
+                else:
+                    user = verify_user(username, password)
+                    if user:
+                        # Đăng nhập thành công, lưu thông tin vào session
+                        st.session_state.logged_in = True
+                        st.session_state.user_info = user
+                        st.rerun() # Tải lại trang web để chuyển vào Dashboard
+                    else:
+                        st.error("❌ Tên đăng nhập hoặc mật khẩu không đúng!")
 
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 (GIAO DIỆN TƯƠNG TÁC MỚI) ---
 def show_class_management():
