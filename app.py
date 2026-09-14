@@ -988,12 +988,41 @@ def show_summary_page():
                 st.markdown("---")
                 col_btn1, col_btn2 = st.columns(2)
                 
+                # ==========================================
+                # LỌC DỮ LIỆU ĐỂ BƠM VÀO FILE EXCEL CHI TIẾT
+                # ==========================================
+                student_id_to_name = {hs[0]: hs[1] for hs in all_students}
+                
+                # 1. Lọc điểm cộng
+                positive_points = {}
+                for ev in all_events:
+                    if ev[5] == "Khen thưởng" and ev[6] > 0:
+                        positive_points[ev[0]] = positive_points.get(ev[0], 0) + ev[6]
+                pos_list = sorted([(student_id_to_name.get(sid, ""), pts) for sid, pts in positive_points.items()], key=lambda x: x[1], reverse=True)
+                
+                # 2. Lọc danh sách chưa có điểm cộng
+                zero_list = sorted([name for sid, name in student_id_to_name.items() if sid not in positive_points])
+                
+                # 3. Tổng hợp vi phạm
+                vio_summary = {}
+                for ev in all_events:
+                    if ev[5] == "Vi phạm":
+                        key = (ev[0], ev[4]) # Gom nhóm theo ID và Tên lỗi
+                        if key not in vio_summary:
+                            vio_summary[key] = {'ten': ev[1], 'lop': ev[2], 'to': ev[3] or '', 'mo_ta': ev[4], 'count': 0}
+                        vio_summary[key]['count'] += 1
+                vio_list = sorted(vio_summary.values(), key=lambda x: (x['ten'], x['mo_ta']))
+
+                # ==========================================
+                # TẠO VÀ XUẤT FILE EXCEL
+                # ==========================================
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                     filepath = tmp.name
                     
+                # Gọi hàm xuất Excel và truyền đầy đủ 3 danh sách vừa lọc vào
                 success, msg = generate_weekly_summary_excel(
                     student_list, week_num, user['full_name'], user['class'] or "Toàn trường", user['group'] or "", 
-                    start_date, end_date, filepath, [], [], [] 
+                    start_date, end_date, filepath, pos_list, zero_list, vio_list 
                 )
                 
                 with col_btn1:
@@ -1005,6 +1034,9 @@ def show_summary_page():
                 with col_btn2:
                     st.info("👆 File Excel đính kèm chứa 5 sheet chi tiết giống hệt bản Desktop (Xếp hạng, Vi phạm, Khen thưởng...).")
 
+                # ==========================================
+                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN / BÁO CÁO
+                # ==========================================
                 # 1. TRỢ LÝ CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
                 if user['role'] in ['gvcn', 'admin']:
                     with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
@@ -1038,7 +1070,6 @@ def show_summary_page():
                         group_name = user['group'] or "..."
                         class_name = user['class'] or "..."
                         
-                        # Xây dựng kịch bản báo cáo bằng lời nói
                         msg_bcs = f"Kính thưa Thầy/Cô giáo chủ nhiệm cùng toàn thể các bạn trong lớp.\n"
                         msg_bcs += f"Sau đây, em xin thay mặt Tổ {group_name} báo cáo tình hình thi đua của tổ trong Tuần {week_num} vừa qua như sau:\n\n"
                         
@@ -1068,7 +1099,6 @@ def show_summary_page():
 
                         msg_bcs += f"\nDạ, phần báo cáo của Tổ {group_name} đến đây là hết. Em xin cảm ơn Thầy/Cô và các bạn đã lắng nghe!"
                         
-                        # Cho khung Text Area cao hơn một chút để dễ cầm đọc
                         st.text_area("Văn bản báo cáo (Có thể chỉnh sửa thêm nếu cần):", value=msg_bcs, height=350, key="txt_report_bcs")
 
     # ==========================================
