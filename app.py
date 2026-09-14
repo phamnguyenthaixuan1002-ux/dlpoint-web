@@ -1946,13 +1946,13 @@ def create_certificate_image(student_name, class_name, achievement_text, photo_f
     buf = io.BytesIO()
     img.save(buf, format='JPEG', quality=95)
     return buf.getvalue()
-# --- HÀM 8: BẢNG VÀNG THI ĐUA ĐƯỢC NÂNG CẤP CÓ ẢNH ---
+# --- HÀM 8: BẢNG VÀNG THI ĐUA ĐƯỢC NÂNG CẤP (CÓ CHỌN TUẦN) ---
 def show_leaderboard_page():
     import streamlit as st
     import pandas as pd
     import json
     import os
-    import base64 # Khai báo trực tiếp trong hàm để chống lỗi
+    import base64
     from datetime import date, datetime, timedelta
     
     st.header("🏆 Bảng Vàng Thi Đua & Vinh Danh")
@@ -1961,20 +1961,32 @@ def show_leaderboard_page():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
 
+    # --- 1. TÍNH TUẦN HIỆN TẠI LÀM MẶC ĐỊNH ---
     today = date.today()
     try:
         start_date_str = load_setting('school_year_start_date', '2025-09-08')
         h_json = json.loads(load_setting(HOLIDAY_SETTINGS_KEY, '[]'))
         h_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in h_json]
-        current_week = get_school_week_number(today, datetime.strptime(start_date_str, '%Y-%m-%d').date(), h_in_year)
-        if current_week <= 0: current_week = 1
-    except: current_week = 1
+        current_week_default = get_school_week_number(today, datetime.strptime(start_date_str, '%Y-%m-%d').date(), h_in_year)
+        if current_week_default <= 0: current_week_default = 1
+    except: current_week_default = 1
         
-    start_w, end_w = get_week_dates_by_number(current_week)
-    if not start_w: 
-        start_w = today - timedelta(days=today.weekday())
-        end_w = today + timedelta(days=6-today.weekday())
+    # --- 2. BỘ LỌC CHỌN TUẦN ---
+    col_w1, col_w2 = st.columns([1, 3])
+    with col_w1:
+        # Cho phép người dùng chọn tuần, mặc định là tuần hiện tại
+        selected_week = st.number_input("Tùy chọn Tuần xem Bảng Vàng:", min_value=1, max_value=52, value=current_week_default, step=1)
 
+    # --- 3. LẤY NGÀY THEO TUẦN ĐƯỢC CHỌN ---
+    start_w, end_w = get_week_dates_by_number(selected_week)
+    if not start_w: 
+        st.error(f"Lỗi: Không thể tính toán ngày tháng cho Tuần {selected_week}.")
+        return
+
+    st.info(f"✨ Đang hiển thị thành tích **Tuần {selected_week}** (Từ {start_w.strftime('%d/%m')} đến {end_w.strftime('%d/%m')})")
+    st.markdown("---")
+
+    # --- 4. TRUY XUẤT DỮ LIỆU ---
     all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
     all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=role, assigned_class=aclass, assigned_group=agroup)
     
@@ -1997,15 +2009,15 @@ def show_leaderboard_page():
     student_list.sort(key=lambda x: x['diem'], reverse=True)
 
     if not student_list:
-        st.info("Chưa có dữ liệu học sinh để xếp hạng.")
+        st.warning(f"Tuần {selected_week} chưa có dữ liệu rèn luyện nào để xếp hạng.")
         return
 
-    st.subheader(f"🌟 TOP 3 HỌC SINH XUẤT SẮC NHẤT TUẦN {current_week}")
+    # === KHU VỰC 1: BỤC VINH QUANG TOP 3 ===
+    st.subheader(f"🌟 TOP 3 HỌC SINH XUẤT SẮC NHẤT TUẦN {selected_week}")
     
     top3 = student_list[:3]
     col2, col1, col3 = st.columns([1, 1.2, 1], gap="medium")
     
-    # Hàm con mã hóa ảnh an toàn chống lỗi
     def get_image_base64(path):
         if path and isinstance(path, str) and os.path.exists(os.path.join('student_photos', path)):
             try:
@@ -2013,7 +2025,7 @@ def show_leaderboard_page():
                     encoded = base64.b64encode(img_file.read()).decode()
                     return f"data:image/jpeg;base64,{encoded}"
             except: pass
-        return "https://cdn-icons-png.flaticon.com/512/149/149071.png" # Ảnh mặc định
+        return "https://cdn-icons-png.flaticon.com/512/149/149071.png" 
 
     def draw_podium(col, hs, rank, icon, color):
         img_b64 = get_image_base64(hs['anh_the'])
@@ -2029,14 +2041,17 @@ def show_leaderboard_page():
             """, unsafe_allow_html=True)
             
             try:
-                cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {current_week}", hs['anh_the'])
-                st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", width="stretch", key=f"btn_cert_{hs['id']}")
+                # Cập nhật chữ trong Bằng khen theo tuần được chọn
+                cert_img = create_certificate_image(hs['ten'], hs['lop'], f"Đạt Top {rank} Xuất sắc Tuần {selected_week}", hs['anh_the'])
+                st.download_button("📥 Tải Bằng Khen", data=cert_img, file_name=f"BangKhen_T{selected_week}_Top{rank}_{hs['ten']}.jpg", mime="image/jpeg", width="stretch", key=f"btn_cert_{hs['id']}_{selected_week}")
             except Exception as e:
                 st.error("Lỗi tạo bằng khen")
 
     if len(top3) > 0: 
         draw_podium(col1, top3[0], 1, "🥇", "#FFF9E6") 
-        st.balloons() 
+        # Chỉ bắn bóng bay nếu đang xem tuần hiện tại
+        if selected_week == current_week_default:
+            st.balloons() 
     if len(top3) > 1: draw_podium(col2, top3[1], 2, "🥈", "#F2F2F2")
     if len(top3) > 2: draw_podium(col3, top3[2], 3, "🥉", "#FFF0E6")
 
@@ -2046,7 +2061,7 @@ def show_leaderboard_page():
     col_t_left, col_t_right = st.columns([1, 1.2], gap="large")
     
     with col_t_left:
-        st.subheader("👥 Xếp Hạng Tổ (Tuần này)")
+        st.subheader("👥 Xếp Hạng Tổ")
         df_hs = pd.DataFrame(student_list)
         if not df_hs.empty:
             team_ranking = df_hs.groupby('to')['diem'].mean().reset_index()
@@ -2068,7 +2083,6 @@ def show_leaderboard_page():
                 else:
                     bg, color, icon, border = "#ffffff", "#333333", "🏅", "border-left: 5px solid #bdc3c7; border-top: 1px solid #eee; border-bottom: 1px solid #eee; border-right: 1px solid #eee;"
 
-                # Viết trên 1 dòng để tránh lỗi Markdown của Streamlit
                 html_teams += f"<div style='background: {bg}; padding: 15px 20px; border-radius: 12px; {border} display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;'><div style='font-size: 18px; font-weight: bold; color: {color};'><span style='font-size: 24px; vertical-align: middle;'>{icon}</span> Hạng {rank}: Tổ {ten_to}</div><div style='font-size: 22px; font-weight: 900; color: {color};'>{diem_tb:.1f} <span style='font-size: 14px; font-weight: normal;'>điểm</span></div></div>"
                 
             html_teams += "</div>"
@@ -2078,29 +2092,26 @@ def show_leaderboard_page():
         st.subheader("📜 Bảng Danh Dự (Top 4 - Top 10)")
         if len(student_list) > 3:
             top_rest = student_list[3:10]
-            
             html_list = ""
             for i, hs in enumerate(top_rest):
                 rank = i + 4
                 bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff"
-                # Viết trên 1 dòng để tránh lỗi
                 html_list += f"<div style='background-color: {bg_color}; padding: 10px 15px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #3498db; display: flex; justify-content: space-between; align-items: center;'><div style='font-size: 16px;'><strong style='color: #2980b9;'>Hạng {rank} 🏅</strong> &nbsp; | &nbsp; <b>{hs['ten']}</b> <span style='color: gray; font-size: 14px;'>(Tổ {hs['to']})</span></div><div style='font-size: 18px; font-weight: bold; color: #d63031;'>{hs['diem']}đ</div></div>"
             st.markdown(html_list, unsafe_allow_html=True)
 
     # === KHU VỰC 3: NHẮC NHỞ HỌC SINH CHƯA CÓ ĐIỂM CỘNG ===
     st.markdown("<br>", unsafe_allow_html=True)
-    
     khen_thuong_ids = set([ev[0] for ev in all_events if ev[5] == "Khen thưởng" and ev[6] > 0])
     hs_chua_co_diem = [hs['ten'] for hs in student_list if hs['id'] not in khen_thuong_ids]
     
     if len(hs_chua_co_diem) > 0:
-        with st.expander(f"⚠️ Kéo xuống để xem danh sách {len(hs_chua_co_diem)} học sinh CHƯA có điểm cộng trong tuần này:", expanded=False):
-            st.info("💡 **Lời nhắn từ GVCN:** Các em có tên dưới đây tuần này chưa hăng hái phát biểu hoặc làm việc tốt. Tuần sau các em nhớ cố gắng giơ tay nhiều hơn để kiếm Xu thưởng nhé!")
+        with st.expander(f"⚠️ Xem danh sách {len(hs_chua_co_diem)} học sinh CHƯA có điểm cộng trong tuần {selected_week}:", expanded=False):
+            st.info("💡 Các em có tên dưới đây tuần này chưa hăng hái phát biểu hoặc làm việc tốt. Cần cố gắng hơn!")
             cols_no_bonus = st.columns(3)
             for i, ten_hs in enumerate(hs_chua_co_diem):
                 cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
     else:
-        st.success("✨ Thật tuyệt vời! 100% học sinh trong lớp đều có điểm cộng tích cực trong tuần này!")
+        st.success(f"✨ Thật tuyệt vời! 100% học sinh đều có điểm cộng tích cực trong tuần {selected_week}!")
 # --- HÀM 10: QUẦY ĐỔI THƯỞNG (GAMIFICATION) ---
 def show_reward_store_page():
     st.header("🎁 Quầy Đổi Thưởng (Reward Store)")
