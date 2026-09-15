@@ -2300,7 +2300,7 @@ def show_reward_store_page():
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
-# --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN CHUẨN XÁC CHỐNG LỖI THỤT LỀ) ---
+# --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN HOÀN CHỈNH - ĐÃ DỌN SẠCH CODE THỪA) ---
 def show_seating_chart_page():
     # 1. NÚT IN SƠ ĐỒ LỚP VÀ CSS ẨN MENU
     st.markdown("""
@@ -2368,6 +2368,7 @@ def show_seating_chart_page():
     with col_set1: so_day = st.number_input("Số Dãy (Tổ):", min_value=1, max_value=6, value=default_day)
     with col_set2: so_ban = st.number_input("Số Bàn/dãy (2 em/bàn):", min_value=1, max_value=15, value=5)
 
+    import json
     setting_key = f"seating_plan_v3_{aclass}"
     try: current_plan = json.loads(load_setting(setting_key, '{}'))
     except: current_plan = {}
@@ -2377,14 +2378,8 @@ def show_seating_chart_page():
     # 3. CHỨC NĂNG XẾP CHỖ (TỰ ĐỘNG & THỦ CÔNG)
     tab_ai, tab_manual = st.tabs(["🤖 Nhờ Thuật toán Xếp Chỗ", "🔄 Tự Đổi Chỗ Bằng Tay"])
     
-    # =======================================================
-    # TAB 1: NHỜ AI XẾP CHỖ (BẢN BỌC THÉP CHỐNG LỖI THỤT LỀ)
-    # ==========================================
     with tab_ai:
         st.info("💡 **Quy tắc:** 1 Dãy = 1 Tổ | Xếp bạn điểm thấp lên bàn đầu | Tách 2 bạn hay nói chuyện khỏi 1 bàn.")
-        
-        # Lớp bảo vệ 1: Khai báo biến rỗng ngay từ đầu để chống lỗi UnboundLocalError
-        new_seating_plan = None 
         
         if st.button("🚀 Chạy Thuật Toán Xếp Chỗ", type="primary"):
             if not raw_students: 
@@ -2414,12 +2409,12 @@ def show_seating_chart_page():
                             
                             if hs_left: new_seating_plan[str(hs_left['id'])] = f"D{day_num}-B{ban_idx}-L"
                             if hs_right: new_seating_plan[str(hs_right['id'])] = f"D{day_num}-B{ban_idx}-R"
-                
-                # Lớp bảo vệ 2: Chỉ lưu khi thuật toán đã chạy ra kết quả
-                if new_seating_plan is not None:
+                    
+                    # Đã khóa chặt vào trong nút bấm, không bao giờ bị trôi ra ngoài nữa
                     save_setting(setting_key, json.dumps(new_seating_plan))
                     st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
                     st.rerun()
+
     with tab_manual:
         st.write("Thầy/Cô chọn 2 vị trí dưới đây để hoán đổi chỗ ngồi cho nhau.")
         
@@ -2460,10 +2455,9 @@ def show_seating_chart_page():
                     st.toast("Đã đổi chỗ thành công!", icon="✅")
                     st.rerun()
 
-    # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI)
+    # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI HIỂN THỊ)
     import base64
     import os
-    import json
     
     def get_img_b64(path):
         if path and os.path.exists(os.path.join('student_photos', path)):
