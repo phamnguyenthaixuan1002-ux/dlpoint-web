@@ -2420,9 +2420,9 @@ def show_seating_chart_page():
             st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
             st.rerun()
 
-    # --- HIỂN THỊ SƠ ĐỒ LỚP (GIAO DIỆN BÀN KÉP) ---
-    st.markdown("<h3 style='text-align: center; color: #555;'>BẢNG ĐEN / BỤC GIẢNG</h3>", unsafe_allow_html=True)
-    st.markdown("<div style='height: 8px; background-color: #34495e; border-radius: 4px; margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+    # --- HIỂN THỊ SƠ ĐỒ LỚP (GIAO DIỆN MODERN UI - SẠCH SẼ, SANG TRỌNG) ---
+    st.markdown("<br><h3 style='text-align: center; color: #2c3e50; letter-spacing: 2px;'>BẢNG ĐEN / BỤC GIẢNG</h3>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'></div>", unsafe_allow_html=True)
 
     try: current_plan = json.loads(load_setting(setting_key, '{}'))
     except: current_plan = {}
@@ -2434,55 +2434,66 @@ def show_seating_chart_page():
             with open(os.path.join('student_photos', path), "rb") as f: return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
         return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
-    # Hàm tạo HTML cho 1 ghế ngồi
+    # Hàm tạo HTML cho 1 ghế ngồi (Đã thiết kế lại đẹp hơn)
     def create_seat_html(hs_id):
         if not hs_id:
-            return "<div style='flex:1; background:#f1f2f6; border-radius:8px; padding:5px; text-align:center; color:#a4b0be; font-size:12px; margin:2px; height:120px; display:flex; align-items:center; justify-content:center; border: 1px dashed #ced6e0;'>Trống</div>"
+            # Ghế trống tinh tế hơn
+            return "<div style='flex:1; background:#f8f9fa; border: 2px dashed #dfe6e9; border-radius:12px; padding:10px; text-align:center; color:#b2bec3; height:150px; display:flex; align-items:center; justify-content:center; margin: 4px;'>Ghế trống</div>"
         
         hs_info = next((item for item in hs_data if item["id"] == hs_id), None)
         if not hs_info: return ""
         
         img_b64 = get_img_b64(hs_info['anh_the'])
-        bg_color = "#e8f5e9" if hs_info['diem'] >= 115 else "#fff" if hs_info['diem'] >= 85 else "#ffebee"
-        border_col = "#00D274" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 85 else "#ff4b4b"
+        
+        # Phối màu hiện đại theo điểm số
+        bg_color = "#f0fff4" if hs_info['diem'] >= 115 else "#ffffff" if hs_info['diem'] >= 80 else "#fff5f5"
+        accent_color = "#27ae60" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 80 else "#e74c3c"
         icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
         
         return f"""
-        <div style='flex:1; background:{bg_color}; border:2px solid {border_col}; border-radius:8px; padding:5px; text-align:center; margin:2px; height:120px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);'>
-            <img src="{img_b64}" style="width:50px; height:50px; object-fit:cover; border-radius:50%; margin-bottom:5px;">
-            <div style='font-size:12px; font-weight:bold; color:#2c3e50; line-height:1.2; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' title='{hs_info["ten_goc"]}'>{hs_info['ten_ngan']}</div>
-            <div style='font-size:11px; color:#7f8fa6; margin-top:2px;'>{hs_info['diem']}đ {icon}</div>
+        <div style='flex:1; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:12px; padding:10px; text-align:center; margin: 4px; height:150px; display:flex; flex-direction:column; justify-content:space-between; align-items:center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: transform 0.2s;'>
+            <img src="{img_b64}" style="width:60px; height:60px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <div style='font-size:14px; font-weight:700; color:#2d3436; margin-top:5px; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' title='{hs_info["ten_goc"]}'>{hs_info['ten_ngan']}</div>
+            <div style='font-size:12px; color:#636e72; font-weight:500; background:#f1f2f6; padding:2px 8px; border-radius:10px;'>{hs_info['diem']}đ {icon}</div>
         </div>
         """
 
-    # VẼ SƠ ĐỒ LỚP
+    # VẼ SƠ ĐỒ LỚP (Gom toàn bộ HTML vào 1 khối để chống lỗi Streamlit)
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
     
-    cols = st.columns(so_day)
+    cols = st.columns(so_day, gap="medium")
     for c in range(1, so_day + 1):
         with cols[c-1]:
-            # Hiển thị Tên Tổ trên đầu mỗi dãy
             to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
-            st.markdown(f"<div style='text-align:center; background:#0056b3; color:white; padding:8px; border-radius:8px 8px 0 0; margin-bottom:0; font-weight:bold;'>Tổ {to_hien_thi}</div>", unsafe_allow_html=True)
             
-            # Vẽ từng Bàn trong Dãy
+            # Mở khối Dãy/Tổ
+            col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%;'>"
+            # Tiêu đề Tổ
+            col_html += f"<div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:12px; border-radius:10px; margin-bottom:15px; font-size:16px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
+            
+            # Vẽ từng Bàn
             for r in range(1, so_ban + 1):
                 seat_l_id, seat_r_id = None, None
                 for hid_str, scode in current_plan.items():
                     if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
                     if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
                 
-                # HTML tạo Khung Bàn Gỗ chứa 2 ghế
-                desk_html = f"""
-                <div style='background-color: #dcdde1; padding: 6px; border-radius: 0 0 8px 8px; margin-bottom: 12px; border-bottom: 5px solid #7f8fa6;'>
-                    <div style='text-align:center; font-size:11px; color:#555; margin-bottom:4px;'><b>Bàn {r}</b></div>
-                    <div style='display:flex; justify-content:space-between;'>
+                # HTML tạo Khung Bàn (Màu trắng sạch sẽ)
+                col_html += f"""
+                <div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7;'>
+                    <div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:5px; text-transform: uppercase; letter-spacing: 1.5px;'>BÀN {r}</div>
+                    <div style='display:flex; justify-content:space-between; gap: 4px;'>
                         {create_seat_html(seat_l_id)}
                         {create_seat_html(seat_r_id)}
                     </div>
                 </div>
                 """
-                st.markdown(desk_html, unsafe_allow_html=True)
+            
+            # Đóng khối Dãy/Tổ
+            col_html += "</div>"
+            
+            # In ra web một lần duy nhất cho mỗi dãy
+            st.markdown(col_html, unsafe_allow_html=True)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
