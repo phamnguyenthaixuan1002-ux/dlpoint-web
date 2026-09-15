@@ -2300,9 +2300,28 @@ def show_reward_store_page():
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
-# --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN TỔI ƯU GIAO DIỆN & IN ẤN 1 TRANG) ---
+# --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN CHUẨN XÁC CHỐNG LỖI THỤT LỀ) ---
 def show_seating_chart_page():
-    # Phần Header và Nút Làm mới
+    # 1. NÚT IN SƠ ĐỒ LỚP VÀ CSS ẨN MENU
+    st.markdown("""
+        <style>
+            @media print {
+                [data-testid="stSidebar"], [data-testid="stHeader"], .stApp > header, .stButton, div:has(> button), iframe { display: none !important; }
+                .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    import streamlit.components.v1 as components
+    components.html("""
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 5px;">
+            <button onclick="window.parent.print()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🖨️ Chỉ In Sơ Đồ Lớp
+            </button>
+        </div>
+    """, height=50)
+
     col_hd1, col_hd2 = st.columns([3, 1])
     with col_hd1: st.header("🪑 Sơ đồ Chỗ ngồi & Thuật toán Tối ưu")
     with col_hd2:
@@ -2311,7 +2330,7 @@ def show_seating_chart_page():
 
     st.markdown("---")
 
-    # Lấy dữ liệu
+    # 2. LẤY DỮ LIỆU
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
 
@@ -2347,7 +2366,7 @@ def show_seating_chart_page():
     default_day = len(to_set) if len(to_set) > 0 else 4
     col_set1, col_set2, col_set3 = st.columns([1, 1, 2])
     with col_set1: so_day = st.number_input("Số Dãy (Tổ):", min_value=1, max_value=6, value=default_day)
-    with col_set2: so_ban = st.number_input("Số Bàn/dãy (2 em/bàn):", min_value=1, max_value=10, value=5)
+    with col_set2: so_ban = st.number_input("Số Bàn/dãy (2 em/bàn):", min_value=1, max_value=15, value=5)
 
     setting_key = f"seating_plan_v3_{aclass}"
     try: current_plan = json.loads(load_setting(setting_key, '{}'))
@@ -2355,14 +2374,17 @@ def show_seating_chart_page():
 
     st.markdown("---")
 
-    # CHỨC NĂNG XẾP CHỖ (TỰ ĐỘNG & THỦ CÔNG)
+    # 3. CHỨC NĂNG XẾP CHỖ (TỰ ĐỘNG & THỦ CÔNG)
     tab_ai, tab_manual = st.tabs(["🤖 Nhờ Thuật toán Xếp Chỗ", "🔄 Tự Đổi Chỗ Bằng Tay"])
     
     with tab_ai:
         st.info("💡 **Quy tắc:** 1 Dãy = 1 Tổ | Xếp bạn điểm thấp lên bàn đầu | Tách 2 bạn hay nói chuyện khỏi 1 bàn.")
+        
+        # Nút bấm bắt đầu thuật toán
         if st.button("🚀 Chạy Thuật Toán Xếp Chỗ", type="primary"):
             if not raw_students: 
-                st.error("Chưa có học sinh!"); st.stop()
+                st.error("Chưa có học sinh!")
+                st.stop()
                 
             with st.spinner("Đang chạy thuật toán sư phạm sắp xếp bàn ghế..."):
                 new_seating_plan = {}
@@ -2389,18 +2411,21 @@ def show_seating_chart_page():
                         if hs_left: new_seating_plan[str(hs_left['id'])] = f"D{day_num}-B{ban_idx}-L"
                         if hs_right: new_seating_plan[str(hs_right['id'])] = f"D{day_num}-B{ban_idx}-R"
                         
+                # 3 Dòng này đã được ép sát vào trong cùng khối với chữ "new_seating_plan", tuyệt đối không lỗi nữa
                 save_setting(setting_key, json.dumps(new_seating_plan))
                 st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
                 st.rerun()
 
     with tab_manual:
         st.write("Thầy/Cô chọn 2 vị trí dưới đây để hoán đổi chỗ ngồi cho nhau.")
+        
         all_seats_options = {}
         for c in range(1, so_day + 1):
             for r in range(1, so_ban + 1):
                 for pos, pos_name in [("L", "Trái"), ("R", "Phải")]:
                     seat_code = f"D{c}-B{r}-{pos}"
                     display_name = f"Dãy {c} - Bàn {r} - {pos_name}"
+                    
                     hs_ngoi_day = "Trống"
                     for hid_str, scode in current_plan.items():
                         if scode == seat_code:
@@ -2416,9 +2441,11 @@ def show_seating_chart_page():
             st.write("")
             st.write("")
             if st.button("🔄 Đổi Chỗ", type="primary", use_container_width=True):
-                if seat_a == seat_b: st.warning("Hai vị trí giống nhau!")
+                if seat_a == seat_b:
+                    st.warning("Hai vị trí giống nhau!")
                 else:
-                    code_a, code_b = all_seats_options[seat_a], all_seats_options[seat_b]
+                    code_a = all_seats_options[seat_a]
+                    code_b = all_seats_options[seat_b]
                     id_at_a = [k for k, v in current_plan.items() if v == code_a]
                     id_at_b = [k for k, v in current_plan.items() if v == code_b]
                     
@@ -2429,89 +2456,46 @@ def show_seating_chart_page():
                     st.toast("Đã đổi chỗ thành công!", icon="✅")
                     st.rerun()
 
-    # =======================================================
-    # VẼ SƠ ĐỒ LỚP BẰNG PURE HTML/CSS (CHỐNG LỖI VÀ TỐI ƯU IN ẤN)
-    # =======================================================
+    # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI)
     import base64
     import os
     import json
-    import streamlit.components.v1 as components
-
+    
     def get_img_b64(path):
         if path and os.path.exists(os.path.join('student_photos', path)):
             with open(os.path.join('student_photos', path), "rb") as f: return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
         return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
-    # Làm gọn ghế ngồi để in vừa 1 trang
     def create_seat_html(hs_id):
-        if not hs_id:
-            return "<div style='width:48%; background:#f8f9fa; border:2px dashed #dfe6e9; border-radius:8px; text-align:center; color:#b2bec3; height:110px; display:flex; align-items:center; justify-content:center; box-sizing:border-box;'>Trống</div>"
-        
+        if not hs_id: return "<div style='width:48%; background:#f8f9fa; border:2px dashed #dfe6e9; border-radius:8px; text-align:center; color:#b2bec3; height:110px; display:flex; align-items:center; justify-content:center; box-sizing:border-box;'>Trống</div>"
         hs_info = next((item for item in hs_data if item["id"] == hs_id), None)
         if not hs_info: return ""
-        
         img_b64 = get_img_b64(hs_info['anh_the'])
         bg_color = "#f0fff4" if hs_info['diem'] >= 115 else "#ffffff" if hs_info['diem'] >= 80 else "#fff5f5"
         accent_color = "#27ae60" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 80 else "#e74c3c"
         icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
-        
         return f"<div style='width:48%; background:{bg_color}; border:1px solid #eee; border-bottom:4px solid {accent_color}; border-radius:8px; padding:6px 4px; text-align:center; height:110px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05); box-sizing:border-box;'><img src='{img_b64}' style='width:45px; height:45px; object-fit:cover; border-radius:50%; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom:4px;'><div style='font-size:11px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:10px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:6px; margin-top:3px;'>{hs_info['diem']} {icon}</div></div>"
 
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
 
-    # BỌC TOÀN BỘ SƠ ĐỒ VÀO MỘT THẺ DIV CÓ ID 'vung-in-so-do'
     master_html = "<div id='vung-in-so-do' style='width: 100%; font-family: Arial, sans-serif; background: white; padding: 10px; border-radius: 10px;'>"
     master_html += f"<h2 style='text-align: center; color: #2c3e50; letter-spacing: 2px; margin-top: 10px; margin-bottom: 5px;'>BẢNG ĐEN / LỚP {aclass}</h2>"
     master_html += "<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 25px;'></div>"
-    
-    # SỬ DỤNG CSS GRID thay vì st.columns (GIÚP KHÔNG BAO GIỜ BỊ LỖI THỤT DÒNG)
     master_html += f"<div style='display: grid; grid-template-columns: repeat({so_day}, 1fr); gap: 12px;'>"
     
     for c in range(1, so_day + 1):
         to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
         col_html = f"<div style='background-color: #f8f9fa; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0; box-sizing: border-box; page-break-inside: avoid;'><div style='text-align:center; background: #0078D7; color:white; padding:8px; border-radius:8px; margin-bottom:12px; font-size:14px; font-weight:bold;'>Tổ {to_hien_thi}</div>"
-        
         for r in range(1, so_ban + 1):
             seat_l_id, seat_r_id = None, None
             for hid_str, scode in current_plan.items():
                 if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
                 if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
             col_html += f"<div style='background-color: #ffffff; padding: 8px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:10px; color:#b2bec3; font-weight:800; margin-bottom:5px; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
-        
         col_html += "</div>"
         master_html += col_html
     master_html += "</div></div>"
-
-    # --- NÚT IN THÔNG MINH ---
-    # Mã JavaScript mở Tab mới chứa nguyên cái Sơ đồ, tự canh lề và bật hộp thoại In
-    safe_html_content = json.dumps(master_html)
-    js_print_code = f"""
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px; margin-top: 20px;">
-        <button onclick="printChart()" style="background-color: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            🖨️ In Sơ Đồ Lớp (Khổ ngang A4)
-        </button>
-    </div>
-    <script>
-        function printChart() {{
-            var content = {safe_html_content};
-            var printWin = window.open('', '_blank');
-            if (printWin) {{
-                printWin.document.write('<html><head><title>In Sơ Đồ Lớp</title>');
-                printWin.document.write('<style>body {{ margin: 0; padding: 10mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }} @page {{ size: A4 landscape; margin: 5mm; }}</style>');
-                printWin.document.write('</head><body>');
-                printWin.document.write(content);
-                printWin.document.write('<script>setTimeout(function() {{ window.print(); }}, 500);</script>');
-                printWin.document.write('</body></html>');
-                printWin.document.close();
-            }} else {{
-                alert("⚠️ Trình duyệt chặn mở Tab mới! Vui lòng cấp quyền cho phép Pop-up.");
-            }}
-        }}
-    </script>
-    """
-    components.html(js_print_code, height=60)
     
-    # In hiển thị Sơ đồ lên Web
     st.markdown(master_html, unsafe_allow_html=True)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
