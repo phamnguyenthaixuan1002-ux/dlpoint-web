@@ -2300,19 +2300,37 @@ def show_reward_store_page():
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
-# --- HÀM 11: SƠ ĐỒ LỚP HỌC (TỐI ƯU IN ẤN THẾ HỆ MỚI) ---
+# --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN TỔNG HỢP HOÀN CHỈNH) ---
 def show_seating_chart_page():
+    # 1. NÚT IN SƠ ĐỒ LỚP
+    st.markdown("""
+        <style>
+            @media print {
+                [data-testid="stSidebar"], [data-testid="stHeader"], .stApp > header, .stButton, div:has(> button), iframe { display: none !important; }
+                .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    components.html("""
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 5px;">
+            <button onclick="window.parent.print()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🖨️ In Sơ Đồ Lớp
+            </button>
+        </div>
+    """, height=50)
+
+    # 2. HEADER VÀ NÚT LÀM MỚI
     col_hd1, col_hd2 = st.columns([3, 1])
     with col_hd1: st.header("🪑 Sơ đồ Chỗ ngồi & Thuật toán Tối ưu")
     with col_hd2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True):
             st.cache_data.clear(); st.rerun()
 
-    # Dành sẵn một chỗ trống trên cùng để đặt nút In (Sau khi vẽ sơ đồ xong mới đặt vào)
-    print_btn_placeholder = st.empty()
-
     st.markdown("---")
 
+    # 3. LẤY DỮ LIỆU
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
 
@@ -2350,21 +2368,22 @@ def show_seating_chart_page():
     with col_set1: so_day = st.number_input("Số Dãy (Tổ):", min_value=1, max_value=6, value=default_day)
     with col_set2: so_ban = st.number_input("Số Bàn/dãy (2 em/bàn):", min_value=1, max_value=15, value=5)
 
-    setting_key = f"seating_plan_v2_{aclass}"
+    setting_key = f"seating_plan_v3_{aclass}"
     try: current_plan = json.loads(load_setting(setting_key, '{}'))
     except: current_plan = {}
 
     st.markdown("---")
 
-    # =======================================================
-    # KHU VỰC THAO TÁC: AI XẾP CHỖ & ĐỔI CHỖ THỦ CÔNG
-    # =======================================================
-    tab_ai, tab_manual = st.tabs(["🤖 Nhờ AI Xếp Chỗ", "🔄 Tự Đổi Chỗ Bằng Tay"])
+    # 4. CHỨC NĂNG XẾP CHỖ (TỰ ĐỘNG & THỦ CÔNG)
+    tab_ai, tab_manual = st.tabs(["🤖 Nhờ Thuật toán Xếp Chỗ", "🔄 Tự Đổi Chỗ Bằng Tay"])
     
     with tab_ai:
-        st.write("Hệ thống sẽ tự quét điểm số và tính cách để xếp lại toàn bộ sơ đồ lớp.")
+        st.info("💡 **Quy tắc:** 1 Dãy = 1 Tổ | Xếp bạn điểm thấp lên bàn đầu | Tách 2 bạn hay nói chuyện khỏi 1 bàn.")
         if st.button("🚀 Chạy Thuật Toán Xếp Chỗ", type="primary"):
-            if not raw_students: st.error("Chưa có học sinh!"); return
+            if not raw_students: 
+                st.error("Chưa có học sinh!")
+                st.stop() # Dừng an toàn nếu không có HS
+                
             with st.spinner("Đang chạy thuật toán sư phạm sắp xếp bàn ghế..."):
                 new_seating_plan = {}
                 to_groups = {}
@@ -2434,9 +2453,10 @@ def show_seating_chart_page():
                     st.toast("Đã đổi chỗ thành công!", icon="✅")
                     st.rerun()
 
-    # =======================================================
-    # VẼ SƠ ĐỒ LỚP VÀ TẠO MÃ HTML ĐỂ IN ẤN
-    # =======================================================
+    # 5. VẼ HTML SƠ ĐỒ LỚP
+    st.markdown("<br><h3 style='text-align: center; color: #2c3e50; letter-spacing: 2px;'>BẢNG ĐEN / BỤC GIẢNG</h3>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'></div>", unsafe_allow_html=True)
+
     import base64
     import os
     def get_img_b64(path):
@@ -2456,80 +2476,20 @@ def show_seating_chart_page():
         return f"<div style='width: 48%; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:10px; padding:8px 4px; text-align:center; height:130px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow: 0 2px 5px rgba(0,0,0,0.04); box-sizing: border-box;'><img src='{img_b64}' style='width:52px; height:52px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 6px;'><div style='font-size:11.5px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:10.5px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:8px; margin-top:4px;'>{hs_info['diem']}đ {icon}</div></div>"
 
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
-
-    master_html = "<div style='width: 100%; font-family: Arial, sans-serif;'>"
-    master_html += f"<h2 style='text-align: center; color: #2c3e50; letter-spacing: 2px; margin-bottom: 0;'>BẢNG ĐEN / LỚP {aclass}</h2>"
-    master_html += "<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 30px;'></div>"
-    master_html += f"<div style='display: grid; grid-template-columns: repeat({so_day}, 1fr); gap: 15px;'>"
     
+    cols = st.columns(so_day, gap="medium")
     for c in range(1, so_day + 1):
-        to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
-        col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:10px; border-radius:8px; margin-bottom:15px; font-size:15px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
-        for r in range(1, so_ban + 1):
-            seat_l_id, seat_r_id = None, None
-            for hid_str, scode in current_plan.items():
-                if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
-                if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
-            col_html += f"<div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:8px; text-transform: uppercase; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
-        col_html += "</div>"
-        master_html += col_html
-    master_html += "</div></div>"
-    
-    # In Sơ đồ ra trang Web hiện tại
-    st.markdown(master_html, unsafe_allow_html=True)
-
-    # --- TẠO TRANG IN ĐỘC LẬP SIÊU SẠCH ---
-    printable_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>In Sơ Đồ Lớp</title>
-        <style>
-            body {{ padding: 20px; }}
-            * {{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }}
-            @page {{ size: A4 landscape; margin: 10mm; }}
-        </style>
-    </head>
-    <body>
-        {master_html}
-        <script>
-            // Chờ 0.5s để ảnh load xong rồi mới bật hộp thoại In
-            setTimeout(function() {{ window.print(); }}, 500);
-        </script>
-    </body>
-    </html>
-    """
-
-    import json
-    import streamlit.components.v1 as components
-    safe_html = json.dumps(printable_html)
-    
-    # Nút In gọi JavaScript mở Tab mới
-    js_code = f"""
-    <div style="display:flex; justify-content:flex-end;">
-        <button onclick="openPrintWindow()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            🖨️ In Sơ Đồ Lớp
-        </button>
-    </div>
-    <script>
-        function openPrintWindow() {{
-            var htmlContent = {safe_html};
-            var printWin = window.open('', '_blank');
-            if (printWin) {{
-                printWin.document.open();
-                printWin.document.write(htmlContent);
-                printWin.document.close();
-            }} else {{
-                alert("⚠️ Trình duyệt chặn Tab mới! Vui lòng nhìn lên góc phải thanh địa chỉ, chọn 'Cho phép cửa sổ bật lên (Pop-up)' rồi bấm in lại.");
-            }}
-        }}
-    </script>
-    """
-    
-    # Bơm nút In lên vị trí trống đã đặt sẵn ở trên cùng
-    with print_btn_placeholder:
-        components.html(js_code, height=60)
+        with cols[c-1]:
+            to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
+            col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:10px; border-radius:8px; margin-bottom:15px; font-size:15px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
+            for r in range(1, so_ban + 1):
+                seat_l_id, seat_r_id = None, None
+                for hid_str, scode in current_plan.items():
+                    if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
+                    if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
+                col_html += f"<div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:8px; text-transform: uppercase; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
+            col_html += "</div>"
+            st.markdown(col_html, unsafe_allow_html=True)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
