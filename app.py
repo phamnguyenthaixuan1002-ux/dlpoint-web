@@ -2406,7 +2406,41 @@ def show_seating_chart_page():
                 save_setting(setting_key, json.dumps(new_seating_plan))
                 st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
                 st.rerun()
-
+# ====================================================================
+    # KHU VỰC NÚT IN SƠ ĐỒ LỚP (TỰ ĐỘNG ẨN MENU KHI IN)
+    # ====================================================================
+    st.markdown("""
+        <style>
+            /* CSS ẩn giao diện web khi in */
+            @media print {
+                [data-testid="stSidebar"], 
+                [data-testid="stHeader"],
+                .stApp > header,
+                .stButton, 
+                div:has(> button), 
+                #print-btn-wrapper { 
+                    display: none !important; 
+                }
+                .block-container {
+                    max-width: 100% !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
+            }
+        </style>
+        
+        <!-- Nút bấm IN -->
+        <div id="print-btn-wrapper" style="display: flex; justify-content: flex-end; margin-bottom: 20px; margin-top: 10px;">
+            <button onclick="window.print()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; transition: 0.2s;">
+                🖨️ In Sơ Đồ Lớp
+            </button>
+        </div>
+    """, unsafe_allow_html=True)
     # --- HIỂN THỊ SƠ ĐỒ LỚP ---
     st.markdown("<br><h3 style='text-align: center; color: #2c3e50; letter-spacing: 2px;'>BẢNG ĐEN / BỤC GIẢNG</h3>", unsafe_allow_html=True)
     st.markdown("<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'></div>", unsafe_allow_html=True)
