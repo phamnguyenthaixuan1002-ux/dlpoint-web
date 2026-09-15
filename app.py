@@ -2377,45 +2377,49 @@ def show_seating_chart_page():
     # 3. CHỨC NĂNG XẾP CHỖ (TỰ ĐỘNG & THỦ CÔNG)
     tab_ai, tab_manual = st.tabs(["🤖 Nhờ Thuật toán Xếp Chỗ", "🔄 Tự Đổi Chỗ Bằng Tay"])
     
+    # =======================================================
+    # TAB 1: NHỜ AI XẾP CHỖ (BẢN BỌC THÉP CHỐNG LỖI THỤT LỀ)
+    # ==========================================
     with tab_ai:
         st.info("💡 **Quy tắc:** 1 Dãy = 1 Tổ | Xếp bạn điểm thấp lên bàn đầu | Tách 2 bạn hay nói chuyện khỏi 1 bàn.")
         
-        # Nút bấm bắt đầu thuật toán
+        # Lớp bảo vệ 1: Khai báo biến rỗng ngay từ đầu để chống lỗi UnboundLocalError
+        new_seating_plan = None 
+        
         if st.button("🚀 Chạy Thuật Toán Xếp Chỗ", type="primary"):
             if not raw_students: 
                 st.error("Chưa có học sinh!")
-                st.stop()
-                
-            with st.spinner("Đang chạy thuật toán sư phạm sắp xếp bàn ghế..."):
-                new_seating_plan = {}
-                to_groups = {}
-                for hs in hs_data: to_groups.setdefault(hs['to'], []).append(hs)
-                sorted_to_names = sorted(to_groups.keys())
-                
-                for d_idx, to_name in enumerate(sorted_to_names):
-                    if d_idx >= so_day: break
-                    day_num = d_idx + 1
-                    students = to_groups[to_name]
-                    students.sort(key=lambda x: x['diem'])
+            else:
+                with st.spinner("Đang chạy thuật toán sư phạm sắp xếp bàn ghế..."):
+                    new_seating_plan = {}
+                    to_groups = {}
+                    for hs in hs_data: to_groups.setdefault(hs['to'], []).append(hs)
+                    sorted_to_names = sorted(to_groups.keys())
                     
-                    talkers = [s for s in students if s['mat_trat_tu'] > 0]
-                    quiet = [s for s in students if s['mat_trat_tu'] == 0]
-                    
-                    for ban_idx in range(1, so_ban + 1):
-                        hs_left, hs_right = None, None
-                        if talkers: hs_left = talkers.pop(0)
-                        elif quiet: hs_left = quiet.pop(0)
-                        if quiet: hs_right = quiet.pop(0)
-                        elif talkers: hs_right = talkers.pop(0)
+                    for d_idx, to_name in enumerate(sorted_to_names):
+                        if d_idx >= so_day: break
+                        day_num = d_idx + 1
+                        students = to_groups[to_name]
+                        students.sort(key=lambda x: x['diem'])
                         
-                        if hs_left: new_seating_plan[str(hs_left['id'])] = f"D{day_num}-B{ban_idx}-L"
-                        if hs_right: new_seating_plan[str(hs_right['id'])] = f"D{day_num}-B{ban_idx}-R"
+                        talkers = [s for s in students if s['mat_trat_tu'] > 0]
+                        quiet = [s for s in students if s['mat_trat_tu'] == 0]
                         
-                # 3 Dòng này đã được ép sát vào trong cùng khối với chữ "new_seating_plan", tuyệt đối không lỗi nữa
-                save_setting(setting_key, json.dumps(new_seating_plan))
-                st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
-                st.rerun()
-
+                        for ban_idx in range(1, so_ban + 1):
+                            hs_left, hs_right = None, None
+                            if talkers: hs_left = talkers.pop(0)
+                            elif quiet: hs_left = quiet.pop(0)
+                            if quiet: hs_right = quiet.pop(0)
+                            elif talkers: hs_right = talkers.pop(0)
+                            
+                            if hs_left: new_seating_plan[str(hs_left['id'])] = f"D{day_num}-B{ban_idx}-L"
+                            if hs_right: new_seating_plan[str(hs_right['id'])] = f"D{day_num}-B{ban_idx}-R"
+                
+                # Lớp bảo vệ 2: Chỉ lưu khi thuật toán đã chạy ra kết quả
+                if new_seating_plan is not None:
+                    save_setting(setting_key, json.dumps(new_seating_plan))
+                    st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
+                    st.rerun()
     with tab_manual:
         st.write("Thầy/Cô chọn 2 vị trí dưới đây để hoán đổi chỗ ngồi cho nhau.")
         
