@@ -2300,49 +2300,16 @@ def show_reward_store_page():
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
-# --- HÀM 11: SƠ ĐỒ LỚP HỌC (TỐI ƯU IN ẤN & ĐỔI CHỖ THỦ CÔNG) ---
+# --- HÀM 11: SƠ ĐỒ LỚP HỌC (TỐI ƯU IN ẤN THẾ HỆ MỚI) ---
 def show_seating_chart_page():
-    # --- CSS ĐẶC BIỆT CHỈ DÀNH CHO IN ẤN ---
-    st.markdown("""
-        <style>
-            @media print {
-                body * { visibility: hidden; } /* Ẩn toàn bộ mọi thứ trên trang web */
-                
-                #vung-in-so-do, #vung-in-so-do * {
-                    visibility: visible; /* Chỉ cho phép vùng sơ đồ hiện ra */
-                }
-                
-                #vung-in-so-do {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                }
-
-                .stApp > header, [data-testid="stSidebar"], .stButton, div:has(> button) {
-                    display: none !important;
-                }
-                * {
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                    color-adjust: exact !important;
-                }
-            }
-        </style>
-        
-        <!-- Nút bấm IN Đẹp -->
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
-            <button onclick="window.parent.print()" style="background-color: #0078D7; color: white; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🖨️ Chỉ In Sơ Đồ Lớp
-            </button>
-        </div>
-    """, unsafe_allow_html=True)
-
     col_hd1, col_hd2 = st.columns([3, 1])
     with col_hd1: st.header("🪑 Sơ đồ Chỗ ngồi & Thuật toán Tối ưu")
     with col_hd2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True):
             st.cache_data.clear(); st.rerun()
+
+    # Dành sẵn một chỗ trống trên cùng để đặt nút In (Sau khi vẽ sơ đồ xong mới đặt vào)
+    print_btn_placeholder = st.empty()
 
     st.markdown("---")
 
@@ -2430,7 +2397,6 @@ def show_seating_chart_page():
     with tab_manual:
         st.write("Thầy/Cô chọn 2 vị trí dưới đây để hoán đổi chỗ ngồi cho nhau.")
         
-        # 1. Tạo danh sách tất cả các ghế trong lớp để làm menu chọn
         all_seats_options = {}
         for c in range(1, so_day + 1):
             for r in range(1, so_ban + 1):
@@ -2438,14 +2404,12 @@ def show_seating_chart_page():
                     seat_code = f"D{c}-B{r}-{pos}"
                     display_name = f"Dãy {c} - Bàn {r} - {pos_name}"
                     
-                    # Tìm xem ai đang ngồi ghế này
                     hs_ngoi_day = "Trống"
                     for hid_str, scode in current_plan.items():
                         if scode == seat_code:
                             hs_info = next((item for item in hs_data if item["id"] == int(hid_str)), None)
                             if hs_info: hs_ngoi_day = hs_info['ten_goc']
                             break
-                    
                     all_seats_options[f"{display_name} ({hs_ngoi_day})"] = seat_code
                     
         col_m1, col_m2, col_m3 = st.columns([2, 2, 1])
@@ -2460,13 +2424,9 @@ def show_seating_chart_page():
                 else:
                     code_a = all_seats_options[seat_a]
                     code_b = all_seats_options[seat_b]
-                    
-                    # Cập nhật Dictionary current_plan
-                    # 1. Tìm HS đang ở A và B
                     id_at_a = [k for k, v in current_plan.items() if v == code_a]
                     id_at_b = [k for k, v in current_plan.items() if v == code_b]
                     
-                    # 2. Xóa vị trí cũ và gán vị trí mới
                     if id_at_a: current_plan[id_at_a[0]] = code_b
                     if id_at_b: current_plan[id_at_b[0]] = code_a
                     
@@ -2475,7 +2435,7 @@ def show_seating_chart_page():
                     st.rerun()
 
     # =======================================================
-    # VẼ SƠ ĐỒ LỚP (GÓI GỌN VÀO 1 THẺ DIV ĐỂ IN CHUẨN XÁC)
+    # VẼ SƠ ĐỒ LỚP VÀ TẠO MÃ HTML ĐỂ IN ẤN
     # =======================================================
     import base64
     import os
@@ -2486,43 +2446,90 @@ def show_seating_chart_page():
 
     def create_seat_html(hs_id):
         if not hs_id:
-            return "<div style='width: 48%; background:#f8f9fa; border: 2px dashed #dfe6e9; border-radius:10px; text-align:center; color:#b2bec3; height:120px; display:flex; align-items:center; justify-content:center; box-sizing: border-box;'>Trống</div>"
+            return "<div style='width: 48%; background:#f8f9fa; border: 2px dashed #dfe6e9; border-radius:10px; text-align:center; color:#b2bec3; height:130px; display:flex; align-items:center; justify-content:center; box-sizing: border-box;'>Trống</div>"
         hs_info = next((item for item in hs_data if item["id"] == hs_id), None)
         if not hs_info: return ""
         img_b64 = get_img_b64(hs_info['anh_the'])
         bg_color = "#f0fff4" if hs_info['diem'] >= 115 else "#ffffff" if hs_info['diem'] >= 80 else "#fff5f5"
         accent_color = "#27ae60" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 80 else "#e74c3c"
         icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
-        return f"<div style='width: 48%; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:10px; padding:6px; text-align:center; height:120px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-sizing: border-box;'><img src='{img_b64}' style='width:45px; height:45px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 4px;'><div style='font-size:11px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;'>{hs_info['ten_ngan']}</div><div style='font-size:10px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 4px; border-radius:8px; margin-top:3px;'>{hs_info['diem']} {icon}</div></div>"
+        return f"<div style='width: 48%; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:10px; padding:8px 4px; text-align:center; height:130px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow: 0 2px 5px rgba(0,0,0,0.04); box-sizing: border-box;'><img src='{img_b64}' style='width:52px; height:52px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 6px;'><div style='font-size:11.5px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:10.5px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:8px; margin-top:4px;'>{hs_info['diem']}đ {icon}</div></div>"
 
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
 
-    # Gói toàn bộ Sơ đồ vào 1 thẻ div có id là "vung-in-so-do"
-    master_html = "<div id='vung-in-so-do' style='width: 100%; font-family: sans-serif;'>"
-    master_html += "<h2 style='text-align: center; color: #2c3e50; letter-spacing: 2px; margin-bottom: 0;'>BẢNG ĐEN / BỤC GIẢNG</h2>"
+    master_html = "<div style='width: 100%; font-family: Arial, sans-serif;'>"
+    master_html += f"<h2 style='text-align: center; color: #2c3e50; letter-spacing: 2px; margin-bottom: 0;'>BẢNG ĐEN / LỚP {aclass}</h2>"
     master_html += "<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 30px;'></div>"
-    
-    # Dùng CSS Grid để chia cột hoàn hảo (Không dùng st.columns nữa để in ra giấy không bị vỡ)
     master_html += f"<div style='display: grid; grid-template-columns: repeat({so_day}, 1fr); gap: 15px;'>"
     
     for c in range(1, so_day + 1):
         to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
-        col_html = f"<div style='background-color: #f4f6f9; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:8px; border-radius:8px; margin-bottom:12px; font-size:14px; font-weight:bold;'>Tổ {to_hien_thi}</div>"
-        
+        col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:10px; border-radius:8px; margin-bottom:15px; font-size:15px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
         for r in range(1, so_ban + 1):
             seat_l_id, seat_r_id = None, None
             for hid_str, scode in current_plan.items():
                 if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
                 if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
-            col_html += f"<div style='background-color: #ffffff; padding: 8px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:10px; color:#b2bec3; font-weight:800; margin-bottom:6px; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
-        
+            col_html += f"<div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:8px; text-transform: uppercase; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
         col_html += "</div>"
         master_html += col_html
-        
     master_html += "</div></div>"
     
-    # In toàn bộ khối HTML ra web
+    # In Sơ đồ ra trang Web hiện tại
     st.markdown(master_html, unsafe_allow_html=True)
+
+    # --- TẠO TRANG IN ĐỘC LẬP SIÊU SẠCH ---
+    printable_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>In Sơ Đồ Lớp</title>
+        <style>
+            body {{ padding: 20px; }}
+            * {{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }}
+            @page {{ size: A4 landscape; margin: 10mm; }}
+        </style>
+    </head>
+    <body>
+        {master_html}
+        <script>
+            // Chờ 0.5s để ảnh load xong rồi mới bật hộp thoại In
+            setTimeout(function() {{ window.print(); }}, 500);
+        </script>
+    </body>
+    </html>
+    """
+
+    import json
+    import streamlit.components.v1 as components
+    safe_html = json.dumps(printable_html)
+    
+    # Nút In gọi JavaScript mở Tab mới
+    js_code = f"""
+    <div style="display:flex; justify-content:flex-end;">
+        <button onclick="openPrintWindow()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            🖨️ In Sơ Đồ Lớp
+        </button>
+    </div>
+    <script>
+        function openPrintWindow() {{
+            var htmlContent = {safe_html};
+            var printWin = window.open('', '_blank');
+            if (printWin) {{
+                printWin.document.open();
+                printWin.document.write(htmlContent);
+                printWin.document.close();
+            }} else {{
+                alert("⚠️ Trình duyệt chặn Tab mới! Vui lòng nhìn lên góc phải thanh địa chỉ, chọn 'Cho phép cửa sổ bật lên (Pop-up)' rồi bấm in lại.");
+            }}
+        }}
+    </script>
+    """
+    
+    # Bơm nút In lên vị trí trống đã đặt sẵn ở trên cùng
+    with print_btn_placeholder:
+        components.html(js_code, height=60)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
