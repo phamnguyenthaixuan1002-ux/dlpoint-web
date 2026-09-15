@@ -2461,10 +2461,11 @@ def show_seating_chart_page():
             with open(os.path.join('student_photos', path), "rb") as f: return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
         return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
-    # Hàm tạo HTML cho 1 ghế ngồi (Đã ép thành 1 dòng để chống lỗi Markdown)
+    # Hàm tạo HTML cho 1 ghế ngồi (Đã khóa cứng chiều cao, chiều rộng và thu nhỏ chữ)
     def create_seat_html(hs_id):
         if not hs_id:
-            return "<div style='flex:1; background:#f8f9fa; border: 2px dashed #dfe6e9; border-radius:12px; padding:10px; text-align:center; color:#b2bec3; height:150px; display:flex; align-items:center; justify-content:center; margin: 4px;'>Ghế trống</div>"
+            # Ép rộng 48%, cao 130px cho ghế trống
+            return "<div style='width: 48%; background:#f8f9fa; border: 2px dashed #dfe6e9; border-radius:10px; text-align:center; color:#b2bec3; height:130px; display:flex; align-items:center; justify-content:center; box-sizing: border-box;'>Trống</div>"
         
         hs_info = next((item for item in hs_data if item["id"] == hs_id), None)
         if not hs_info: return ""
@@ -2474,8 +2475,8 @@ def show_seating_chart_page():
         accent_color = "#27ae60" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 80 else "#e74c3c"
         icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
         
-        # In trên 1 dòng duy nhất
-        return f"<div style='flex:1; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:12px; padding:10px; text-align:center; margin: 4px; height:150px; display:flex; flex-direction:column; justify-content:space-between; align-items:center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: transform 0.2s;'><img src='{img_b64}' style='width:60px; height:60px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'><div style='font-size:14px; font-weight:700; color:#2d3436; margin-top:5px; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:12px; color:#636e72; font-weight:500; background:#f1f2f6; padding:2px 8px; border-radius:10px;'>{hs_info['diem']}đ {icon}</div></div>"
+        # Ép rộng 48%, cao 130px cho ghế có học sinh. Chữ thu nhỏ xuống 11.5px. Viết trên 1 dòng.
+        return f"<div style='width: 48%; background:{bg_color}; border:1px solid #eee; border-bottom: 4px solid {accent_color}; border-radius:10px; padding:8px 4px; text-align:center; height:130px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow: 0 2px 5px rgba(0,0,0,0.04); box-sizing: border-box;'><img src='{img_b64}' style='width:52px; height:52px; object-fit:cover; border-radius:50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 6px;'><div style='font-size:11.5px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:10.5px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:8px; margin-top:4px;'>{hs_info['diem']}đ {icon}</div></div>"
 
     # VẼ SƠ ĐỒ LỚP
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
@@ -2486,7 +2487,7 @@ def show_seating_chart_page():
             to_hien_thi = to_names_sorted[c-1] if c-1 < len(to_names_sorted) else f"Dãy {c}"
             
             # Gộp HTML Dãy/Tổ
-            col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:12px; border-radius:10px; margin-bottom:15px; font-size:16px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
+            col_html = f"<div style='background-color: #f4f6f9; border-radius: 16px; padding: 12px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box;'><div style='text-align:center; background: linear-gradient(135deg, #0056b3 0%, #0078D7 100%); color:white; padding:10px; border-radius:8px; margin-bottom:15px; font-size:15px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,86,179,0.3);'>Tổ {to_hien_thi}</div>"
             
             for r in range(1, so_ban + 1):
                 seat_l_id, seat_r_id = None, None
@@ -2494,8 +2495,8 @@ def show_seating_chart_page():
                     if scode == f"D{c}-B{r}-L": seat_l_id = int(hid_str)
                     if scode == f"D{c}-B{r}-R": seat_r_id = int(hid_str)
                 
-                # Gộp HTML Bàn
-                col_html += f"<div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7;'><div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:5px; text-transform: uppercase; letter-spacing: 1.5px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; gap: 4px;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
+                # Căn đều khoảng cách bên trong bàn (justify-content: space-between)
+                col_html += f"<div style='background-color: #ffffff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #edf2f7; box-sizing: border-box;'><div style='text-align:center; font-size:11px; color:#b2bec3; font-weight:800; margin-bottom:8px; text-transform: uppercase; letter-spacing: 1px;'>BÀN {r}</div><div style='display:flex; justify-content:space-between; align-items:center; width:100%;'>{create_seat_html(seat_l_id)}{create_seat_html(seat_r_id)}</div></div>"
             
             col_html += "</div>"
             st.markdown(col_html, unsafe_allow_html=True)
