@@ -2407,18 +2407,18 @@ def show_seating_chart_page():
                 st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
                 st.rerun()
 # ====================================================================
-    # KHU VỰC NÚT IN SƠ ĐỒ LỚP (TỰ ĐỘNG ẨN MENU KHI IN)
+    # KHU VỰC NÚT IN SƠ ĐỒ LỚP (BẢN KHẮC PHỤC BẢO MẬT STREAMLIT)
     # ====================================================================
+    # 1. CSS ẩn các menu khi in ra giấy
     st.markdown("""
         <style>
-            /* CSS ẩn giao diện web khi in */
             @media print {
                 [data-testid="stSidebar"], 
                 [data-testid="stHeader"],
                 .stApp > header,
                 .stButton, 
                 div:has(> button), 
-                #print-btn-wrapper { 
+                iframe { /* Ẩn cái nút in đi khi ra giấy */
                     display: none !important; 
                 }
                 .block-container {
@@ -2433,14 +2433,20 @@ def show_seating_chart_page():
                 }
             }
         </style>
-        
-        <!-- Nút bấm IN -->
-        <div id="print-btn-wrapper" style="display: flex; justify-content: flex-end; margin-bottom: 20px; margin-top: 10px;">
-            <button onclick="window.print()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px; transition: 0.2s;">
+    """, unsafe_allow_html=True)
+    
+    # 2. Nút in chứa mã JavaScript chạy trong môi trường an toàn (Iframe)
+    import streamlit.components.v1 as components
+    components.html("""
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 5px;">
+            <button onclick="window.parent.print()" style="background-color: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: Arial, sans-serif;">
                 🖨️ In Sơ Đồ Lớp
             </button>
         </div>
-    """, unsafe_allow_html=True)
+    """, height=50)
+    # ====================================================================
+
+ 
     # --- HIỂN THỊ SƠ ĐỒ LỚP ---
     st.markdown("<br><h3 style='text-align: center; color: #2c3e50; letter-spacing: 2px;'>BẢNG ĐEN / BỤC GIẢNG</h3>", unsafe_allow_html=True)
     st.markdown("<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'></div>", unsafe_allow_html=True)
