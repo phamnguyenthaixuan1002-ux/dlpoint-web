@@ -1768,8 +1768,8 @@ def show_main_dashboard():
             </div>
         """, unsafe_allow_html=True)
         
-        options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quầy Đổi Thưởng", "Quản lý Lớp học", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
-        icons = ["house", "trophy", "gift", "people", "calendar2-check", "lightning-charge"]
+        options = ["Bảng điều khiển", "Bảng Vàng Thi Đua", "Quầy Đổi Thưởng", "Quản lý Lớp học", "Sơ đồ Chỗ ngồi", "Điểm danh hàng ngày", "Ghi nhận Nhanh"]
+        icons = ["house", "trophy", "gift", "people", "grid-3x3", "calendar2-check", "lightning-charge"]
         
         if role in ['gvcn', 'admin', 'bcs']: 
             options.append("Tổng kết & Xuất Báo cáo")
@@ -1898,6 +1898,9 @@ def show_main_dashboard():
         show_reward_store_page()
     elif choice == "Quản lý Lớp học":
         show_class_management()
+        # <<< THÊM 2 DÒNG NÀY VÀO >>>
+    elif choice == "Sơ đồ Chỗ ngồi":
+        show_seating_chart_page()
     elif choice == "Điểm danh hàng ngày":
         show_attendance_page()
     elif choice == "Ghi nhận Nhanh":
@@ -2313,8 +2316,163 @@ def show_reward_store_page():
                         phat_xu_count += 1
                         
             st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
+# --- HÀM 11: SƠ ĐỒ LỚP HỌC (AI SMART SEATING) ---
+def show_seating_chart_page():
+    st.header("🪑 Sơ đồ Chỗ ngồi & AI Trợ lý")
+    st.markdown("---")
+
+    user = st.session_state.user_info
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    if role not in ['gvcn', 'admin']:
+        st.error("Chức năng này chỉ dành cho Giáo viên chủ nhiệm sắp xếp chỗ ngồi.")
+        return
+
+    # 1. Lấy dữ liệu học sinh và điểm số hiện tại
+    raw_students = get_cached_students(role, aclass, agroup)
+    if not raw_students:
+        st.warning("Lớp chưa có học sinh.")
+        return
+
+    # Lấy dữ liệu rèn luyện 30 ngày qua để AI phân tích
+    today = date.today()
+    start_30d = today - timedelta(days=30)
+    events_30d = lay_su_kien_trong_khoang_ngay_db(start_30d.strftime('%Y-%m-%d'), (today + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+    
+    events_by_student = {}
+    for ev in events_30d: events_by_student.setdefault(ev[0], []).append(ev)
+
+    hs_data = []
+    for hs in raw_students:
+        hs_id, ten, lop, _, _, _, anh_the = hs
+        my_events = events_by_student.get(hs_id, [])
+        diem = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
+        
+        # Phân tích lỗi để mớm cho AI
+        loi_mat_trat_tu = sum(1 for e in my_events if "Mất trật tự" in e[4] or "Nói chuyện" in e[4])
+        loi_khac = sum(1 for e in my_events if e[5] == "Vi phạm" and "Mất trật tự" not in e[4])
+        
+        hs_data.append({
+            "id": hs_id, "ten": ten.split()[-1] + " " + " ".join(ten.split()[:-1]), # Định dạng Tên lên trước cho dễ nhìn
+            "ten_goc": ten, "diem": diem, "anh_the": anh_the,
+            "mat_trat_tu": loi_mat_trat_tu, "loi_khac": loi_khac
+        })
+
+    # Cài đặt kích thước lớp học
+    col_set1, col_set2, col_set3 = st.columns([1, 1, 2])
+    with col_set1:
+        so_day = st.number_input("Số dãy bàn (Cột):", min_value=1, max_value=6, value=4)
+    with col_set2:
+        so_ban = st.number_input("Số bàn mỗi dãy (Hàng):", min_value=1, max_value=10, value=5)
+
+    st.markdown("---")
+
+    # --- NÚT GỌI AI SẮP XẾP ---
+    col_ai1, col_ai2 = st.columns([1, 2])
+    with col_ai1:
+        btn_ai_sort = st.button("✨ Nhờ AI Xếp Chỗ Tối Ưu", type="primary", width="stretch")
+    with col_ai2:
+        st.info("💡 **Chiến thuật AI:** Tách các bạn hay nói chuyện; Xếp bạn điểm thấp lên bàn đầu; Bạn xuất sắc ngồi cạnh kèm cặp.")
+
+    # Xử lý Logic AI
+    setting_key = f"seating_plan_{aclass}"
+    
+    if btn_ai_sort:
+        if "GEMINI_API_KEY" not in st.secrets:
+            st.error("Chưa cấu hình API Key của Google Gemini!")
+        elif len(hs_data) > so_day * so_ban:
+            st.error(f"Số chỗ ngồi ({so_day * so_ban}) ít hơn số học sinh ({len(hs_data)}). Vui lòng tăng số bàn/dãy.")
+        else:
+            with st.spinner("🤖 AI đang phân tích tính cách và điểm số để xếp chỗ..."):
+                try:
+                    from google import genai
+                    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                    
+                    # Rút gọn dữ liệu gửi cho AI để tiết kiệm token
+                    ai_input_data = [{"id": hs['id'], "diem": hs['diem'], "noi_chuyen": hs['mat_trat_tu']} for hs in hs_data]
+                    
+                    prompt = f"""
+                    Bạn là một giáo viên chủ nhiệm. Hãy sắp xếp chỗ ngồi cho {len(hs_data)} học sinh vào một lớp học có {so_day} dãy (cột) và {so_ban} bàn (hàng).
+                    Tọa độ chỗ ngồi ký hiệu là R-C (Ví dụ R1-C1 là Hàng 1 Cột 1). Hàng 1 là bàn đầu tiên gần bảng.
+                    
+                    Dữ liệu học sinh: {ai_input_data}
+                    
+                    Quy tắc xếp chỗ bắt buộc:
+                    1. Học sinh có 'noi_chuyen' > 0 tuyệt đối KHÔNG được xếp ngồi cạnh nhau (không cùng hàng ở 2 cột sát nhau).
+                    2. Học sinh có 'diem' thấp nhất (dưới 80) ưu tiên xếp ở R1 hoặc R2 (Bàn đầu).
+                    3. Trả về KẾT QUẢ DUY NHẤT LÀ ĐỊNH DẠNG JSON. Không giải thích gì thêm.
+                    Định dạng JSON yêu cầu: {{"id_hoc_sinh": "R1-C1", "id_hoc_sinh_2": "R2-C3"}}
+                    """
+                    
+                    response = client.models.generate_content(model='gemini-3.6-flash', contents=prompt)
+                    
+                    # Làm sạch chuỗi trả về để lấy JSON
+                    json_str = response.text.replace("```json", "").replace("```", "").strip()
+                    import json
+                    new_seating_plan = json.loads(json_str)
+                    
+                    # Lưu vào DB dưới dạng setting
+                    save_setting(setting_key, json.dumps(new_seating_plan))
+                    st.toast("AI đã xếp chỗ thành công!", icon="🎉")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi AI xử lý: {e}. Có thể do dữ liệu lớp quá phức tạp, thầy bấm thử lại lần nữa nhé.")
+
+    # --- HIỂN THỊ SƠ ĐỒ LỚP BẰNG HÌNH ẢNH ---
+    st.markdown("<h3 style='text-align: center; color: #555;'>BẢNG ĐEN / MÀN HÌNH TIVI</h3>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 10px; background-color: #2c3e50; border-radius: 5px; margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+
+    # Đọc sơ đồ hiện tại
+    try:
+        current_plan = json.loads(load_setting(setting_key, '{}'))
+    except: current_plan = {}
+
+    import base64
+    import os
+    def get_img_b64(path):
+        if path and os.path.exists(os.path.join('student_photos', path)):
+            with open(os.path.join('student_photos', path), "rb") as f: return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
+        return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+
+    # Tạo lưới (Grid) hiển thị sơ đồ
+    for r in range(1, so_ban + 1):
+        cols = st.columns(so_day)
+        for c in range(1, so_day + 1):
+            seat_code = f"R{r}-C{c}"
+            with cols[c-1]:
+                # Tìm xem hs nào đang ngồi ghế này
+                hs_id_in_seat = None
+                for hid_str, scode in current_plan.items():
+                    if scode == seat_code:
+                        hs_id_in_seat = int(hid_str)
+                        break
+                
+                if hs_id_in_seat:
+                    hs_info = next((item for item in hs_data if item["id"] == hs_id_in_seat), None)
+                    if hs_info:
+                        img_b64 = get_img_b64(hs_info['anh_the'])
+                        color = "#e8f5e9" if hs_info['diem'] >= 100 else "#ffebee" if hs_info['diem'] < 80 else "#f8f9fa"
+                        border = "#00D274" if hs_info['diem'] >= 100 else "#ff4b4b" if hs_info['diem'] < 80 else "#bdc3c7"
+                        
+                        warning_icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
+                        
+                        st.markdown(f"""
+                        <div style='background-color: {color}; padding: 10px; border-radius: 8px; border: 2px solid {border}; text-align: center; margin-bottom: 15px; height: 160px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                            <img src="{img_b64}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 50%; margin-bottom: 5px;">
+                            <div style='font-size: 13px; font-weight: bold; line-height: 1.2; color: #333;'>{hs_info['ten_goc']}</div>
+                            <div style='font-size: 12px; color: gray;'>Điểm: {hs_info['diem']} {warning_icon}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    # Ghế trống
+                    st.markdown(f"""
+                    <div style='background-color: #f1f2f6; padding: 10px; border-radius: 8px; border: 2px dashed #ced6e0; text-align: center; margin-bottom: 15px; height: 160px; display: flex; flex-direction: column; justify-content: center;'>
+                        <span style='color: #a4b0be; font-size: 12px;'>Bàn trống</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
 else:
     show_main_dashboard()
+
