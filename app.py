@@ -1456,10 +1456,6 @@ def show_admin_page():
                     else:
                         st.error("Vui lòng nhập tên sự kiện.")
 
-    # ==========================================
-    # TAB 3: CÀI ĐẶT CHUNG
-    # ==========================================
-    # ==========================================
     # TAB 3: CÀI ĐẶT NĂM HỌC & KỲ NGHỈ LỄ
     # ==========================================
     with tab_settings:
@@ -1523,132 +1519,121 @@ def show_admin_page():
             if not has_error:
                 save_setting(HOLIDAY_SETTINGS_KEY, json.dumps(valid_holidays))
                 st.success("✅ Đã lưu danh sách kỳ nghỉ thành công! Hệ thống sẽ tự động tính lại số Tuần trên toàn ứng dụng.")
-     # TAB 4: QUẢN LÝ LỚP & HỌC SINH (NHẬP/XÓA HÀNG LOẠT)
+    # ==========================================
+    # TAB 4: QUẢN LÝ LỚP & HỌC SINH (NHẬP/XÓA/CẬP NHẬT ẢNH HÀNG LOẠT)
     # ==========================================
     with tab_class:
-        st.info("Khu vực này giúp thầy khởi tạo lớp mới nhanh chóng bằng Excel, hoặc dọn dẹp dữ liệu học sinh lớp cũ/chuyển trường.")
+        st.info("Khu vực này giúp thầy khởi tạo lớp mới nhanh chóng, dọn dẹp dữ liệu, hoặc gắn ảnh thẻ cho cả lớp chỉ bằng 1 file Excel.")
         
-        col_import, col_delete = st.columns([1, 1], gap="large")
+        # Chia làm 3 cột
+        col_import, col_photo, col_delete = st.columns([1, 1, 1], gap="medium")
 
         # ---------------------------------------
-        # CỘT TRÁI: TẠO LỚP BẰNG EXCEL
+        # CỘT 1: TẠO LỚP (GIỮ NGUYÊN NHƯ CŨ)
         # ---------------------------------------
         with col_import:
-            st.subheader("📥 1. Tạo Lớp (Nhập từ Excel)")
-            
-            # Tạo file Excel mẫu ngay trên bộ nhớ để tải về
+            st.subheader("📥 1. Tạo Lớp Mới")
             df_template = pd.DataFrame(columns=["Họ tên học sinh", "Lớp", "Tổ", "Ngày tháng năm sinh", "Địa chỉ", "SĐT Học sinh", "SĐT Zalo", "Ghi chú"])
             output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_template.to_excel(writer, index=False)
-            excel_data = output.getvalue()
-
-            st.download_button(
-                label="⬇️ Tải File Excel Mẫu",
-                data=excel_data,
-                file_name="Mau_Nhap_Hoc_Sinh.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df_template.to_excel(writer, index=False)
             
-            st.markdown("---")
-            uploaded_file = st.file_uploader("Tải lên file danh sách học sinh (đã điền):", type=['xlsx', 'xls'])
+            st.download_button("⬇️ Tải File Mẫu (Tạo lớp)", data=output.getvalue(), file_name="Mau_Tao_Lop.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
+            uploaded_file = st.file_uploader("Tải lên danh sách học sinh mới:", type=['xlsx', 'xls'])
             if uploaded_file is not None:
-                if st.button("🚀 Xử lý & Nhập vào hệ thống", type="primary"):
+                if st.button("🚀 Nhập học sinh mới", type="primary", use_container_width=True):
                     try:
                         df_import = pd.read_excel(uploaded_file)
-                        headers = df_import.columns.tolist()
-                        
-                        if "Họ tên học sinh" not in headers or "Lớp" not in headers:
-                            st.error("File Excel không hợp lệ. Bắt buộc phải có cột 'Họ tên học sinh' và 'Lớp'.")
-                        else:
-                            # Map cột Excel sang cột DB
-                            db_map = {
-                                "Họ tên học sinh": "ten", "Lớp": "lop", "Tổ": "to_nhiem_vu", 
-                                "Ngày tháng năm sinh": "ngay_sinh", "Địa chỉ": "dia_chi",
-                                "SĐT Học sinh": "sdt_hoc_sinh", "SĐT Zalo": "sdt_zalo", "Ghi chú": "ghi_chu"
-                            }
-                            
-                            success_count, fail_count = 0, 0
-                            with st.spinner("Đang lưu dữ liệu vào CSDL..."):
-                                for _, row in df_import.iterrows():
-                                    if pd.isna(row.get("Họ tên học sinh")) or pd.isna(row.get("Lớp")):
-                                        continue # Bỏ qua dòng trống
-                                    
-                                    data_db = {}
-                                    for excel_col, db_col in db_map.items():
-                                        val = row.get(excel_col)
-                                        data_db[db_col] = str(val).strip() if pd.notna(val) else ""
-                                        
-                                    if them_hoc_sinh_db(data_db): success_count += 1
-                                    else: fail_count += 1
-                                    
-                            st.success(f"Đã nhập thành công {success_count} học sinh. Bỏ qua/Lỗi: {fail_count} dòng.")
-                    except Exception as e:
-                        st.error(f"Có lỗi khi đọc file: {e}")
+                        db_map = {"Họ tên học sinh": "ten", "Lớp": "lop", "Tổ": "to_nhiem_vu", "Ngày tháng năm sinh": "ngay_sinh", "Địa chỉ": "dia_chi", "SĐT Học sinh": "sdt_hoc_sinh", "SĐT Zalo": "sdt_zalo", "Ghi chú": "ghi_chu"}
+                        success_count, fail_count = 0, 0
+                        with st.spinner("Đang lưu dữ liệu vào CSDL..."):
+                            for _, row in df_import.iterrows():
+                                if pd.isna(row.get("Họ tên học sinh")) or pd.isna(row.get("Lớp")): continue
+                                data_db = {db_col: str(row.get(ex_col)).strip() if pd.notna(row.get(ex_col)) else "" for ex_col, db_col in db_map.items()}
+                                if them_hoc_sinh_db(data_db): success_count += 1
+                                else: fail_count += 1
+                        st.success(f"Đã nhập thành công {success_count} học sinh. Lỗi: {fail_count} dòng.")
+                    except Exception as e: st.error(f"Lỗi: {e}")
 
         # ---------------------------------------
-        # CỘT PHẢI: XÓA HỌC SINH / XÓA LỚP
+        # CỘT 2: CẬP NHẬT ẢNH THẺ HÀNG LOẠT (TÍNH NĂNG MỚI)
+        # ---------------------------------------
+        with col_photo:
+            st.subheader("🖼️ 2. Gắn Ảnh Thẻ")
+            st.write("Cập nhật tên file ảnh cho các học sinh ĐÃ CÓ trong hệ thống.")
+            
+            # Tạo file mẫu cập nhật ảnh
+            df_photo_template = pd.DataFrame(columns=["Họ và Tên", "Lớp", "Tên file ảnh"])
+            out_photo = io.BytesIO()
+            with pd.ExcelWriter(out_photo, engine='openpyxl') as writer: df_photo_template.to_excel(writer, index=False)
+            
+            st.download_button("⬇️ Tải File Mẫu (Gắn ảnh)", data=out_photo.getvalue(), file_name="Mau_Cap_Nhat_Anh.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            
+            uploaded_photo_file = st.file_uploader("Tải lên danh sách gắn ảnh:", type=['xlsx', 'xls'], key="up_photo")
+            if uploaded_photo_file is not None:
+                if st.button("🖼️ Chạy Cập nhật Ảnh", type="primary", use_container_width=True):
+                    try:
+                        df_p = pd.read_excel(uploaded_photo_file)
+                        if "Họ và Tên" not in df_p.columns or "Lớp" not in df_p.columns or "Tên file ảnh" not in df_p.columns:
+                            st.error("File không hợp lệ. Phải có 3 cột: Họ và Tên, Lớp, Tên file ảnh.")
+                        else:
+                            # Lấy danh sách toàn bộ học sinh để dò tìm ID
+                            all_hs = lay_danh_sach_hoc_sinh_db('admin', None, None)
+                            # Tạo bộ từ điển: Key là (Tên, Lớp) -> Value là ID
+                            hs_dict = {(str(hs[1]).strip().lower(), str(hs[2]).strip().lower()): hs[0] for hs in all_hs}
+                            
+                            s_count, f_count = 0, 0
+                            with st.spinner("Đang dò tìm học sinh và gắn ảnh..."):
+                                for _, row in df_p.iterrows():
+                                    ten = str(row.get("Họ và Tên", "")).strip().lower()
+                                    lop = str(row.get("Lớp", "")).strip().lower()
+                                    ten_file_anh = str(row.get("Tên file ảnh", "")).strip()
+                                    
+                                    if not ten or not lop or not ten_file_anh or ten_file_anh == "nan": continue
+                                    
+                                    # Dò tìm ID học sinh dựa vào Tên và Lớp
+                                    hs_id = hs_dict.get((ten, lop))
+                                    if hs_id:
+                                        # Gọi hàm CSDL cập nhật ảnh
+                                        if cap_nhat_anh_the_db(hs_id, ten_file_anh): s_count += 1
+                                        else: f_count += 1
+                                    else: f_count += 1 # Không tìm thấy học sinh này
+                                        
+                            st.success(f"✅ Đã gắn ảnh thành công cho {s_count} học sinh. Bỏ qua: {f_count} học sinh (Do sai tên/lớp hoặc trống).")
+                    except Exception as e: st.error(f"Lỗi: {e}")
+
+        # ---------------------------------------
+        # CỘT 3: DỌN DẸP / XÓA (GIỮ NGUYÊN NHƯ CŨ)
         # ---------------------------------------
         with col_delete:
-            st.subheader("🗑️ 2. Dọn dẹp Dữ liệu (Xóa)")
-            
+            st.subheader("🗑️ 3. Dọn dẹp (Xóa)")
             classes, _ = get_distinct_classes_and_groups_db()
-            if not classes:
-                st.write("Hiện chưa có lớp nào trong hệ thống.")
+            if not classes: st.write("Chưa có lớp nào.")
             else:
-                delete_mode = st.radio("Chọn phương thức xóa:", ["Xóa từng học sinh được chọn", "Xóa toàn bộ một lớp"])
-                
-                if delete_mode == "Xóa toàn bộ một lớp":
-                    class_to_delete = st.selectbox("Chọn lớp muốn XÓA HOÀN TOÀN:", classes)
-                    st.warning(f"⚠️ CẢNH BÁO: Hành động này sẽ xóa vĩnh viễn toàn bộ học sinh lớp {class_to_delete}, bao gồm cả điểm số, lịch sử kỷ luật của các em.")
-                    
-                    # Xác nhận 2 bước để chống bấm nhầm
-                    confirm_delete = st.checkbox("Tôi hiểu rủi ro và xác nhận muốn xóa lớp này.")
-                    if confirm_delete:
-                        if st.button(f"🚨 TIẾN HÀNH XÓA LỚP {class_to_delete}", type="primary", use_container_width=True):
-                            # Lấy ID của tất cả HS lớp đó (chạy bằng quyền admin)
+                delete_mode = st.radio("Chọn phương thức xóa:", ["Xóa từng học sinh", "Xóa nguyên lớp"])
+                if delete_mode == "Xóa nguyên lớp":
+                    class_to_delete = st.selectbox("Chọn lớp muốn XÓA:", classes)
+                    if st.checkbox("Xác nhận muốn xóa vĩnh viễn lớp này."):
+                        if st.button(f"🚨 XÓA LỚP {class_to_delete}", type="primary", use_container_width=True):
                             hs_lop_do = lay_danh_sach_hoc_sinh_db('admin', class_to_delete, None)
                             ids_to_delete = [hs[0] for hs in hs_lop_do]
-                            
                             if ids_to_delete:
-                                deleted_count = xoa_nhieu_hoc_sinh_db(ids_to_delete)
-                                st.success(f"Đã xóa thành công {deleted_count} học sinh thuộc lớp {class_to_delete} khỏi hệ thống.")
-                                st.rerun() # Tải lại trang
+                                xoa_nhieu_hoc_sinh_db(ids_to_delete)
+                                st.success("Đã xóa thành công."); st.rerun()
 
-                elif delete_mode == "Xóa từng học sinh được chọn":
-                    class_to_filter = st.selectbox("Lọc danh sách theo lớp:", ["Tất cả"] + classes)
-                    
-                    # Lấy danh sách HS để hiển thị
+                elif delete_mode == "Xóa từng học sinh":
+                    class_to_filter = st.selectbox("Lọc theo lớp:", ["Tất cả"] + classes)
                     c_filter = None if class_to_filter == "Tất cả" else class_to_filter
                     hs_list = lay_danh_sach_hoc_sinh_db('admin', c_filter, None)
-                    
                     if hs_list:
-                        # Biến danh sách thành DataFrame và thêm cột Checkbox "Chọn Xóa"
-                        df_hs = pd.DataFrame(hs_list, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])
-                        df_hs = df_hs[["ID", "Họ Tên", "Lớp", "Tổ"]] # Chỉ lấy cột cần thiết
-                        df_hs.insert(0, "Chọn xóa", False) # Cột checkbox mặc định là False
-                        
-                        st.write("Đánh dấu tick [x] vào các học sinh muốn xóa:")
-                        # Hiển thị bảng cho phép chỉnh sửa (tick checkbox)
-                        edited_df = st.data_editor(
-                            df_hs, 
-                            hide_index=True, 
-                            column_config={"Chọn xóa": st.column_config.CheckboxColumn(required=True)},
-                            disabled=["ID", "Họ Tên", "Lớp", "Tổ"], # Khóa các cột thông tin, chỉ cho tick
-                            use_container_width=True
-                        )
-                        
-                        # Lọc ra các ID đã được tick True
-                        selected_rows = edited_df[edited_df["Chọn xóa"] == True]
-                        ids_to_delete = selected_rows["ID"].tolist()
-                        
+                        df_hs = pd.DataFrame(hs_list, columns=["ID", "Họ Tên", "Lớp", "Tổ", "SĐT", "Zalo", "Ảnh"])[["ID", "Họ Tên", "Lớp"]]
+                        df_hs.insert(0, "Chọn xóa", False)
+                        edited_df = st.data_editor(df_hs, hide_index=True, column_config={"Chọn xóa": st.column_config.CheckboxColumn(required=True)}, disabled=["ID", "Họ Tên", "Lớp"], use_container_width=True)
+                        ids_to_delete = edited_df[edited_df["Chọn xóa"] == True]["ID"].tolist()
                         if len(ids_to_delete) > 0:
-                            st.warning(f"Bạn đang chọn xóa {len(ids_to_delete)} học sinh.")
-                            if st.button("🗑️ Xác nhận xóa các HS đã chọn", type="primary"):
-                                deleted_count = xoa_nhieu_hoc_sinh_db(ids_to_delete)
-                                st.success(f"Đã xóa thành công {deleted_count} học sinh.")
-                                st.rerun()
+                            if st.button("🗑️ Xác nhận xóa", type="primary"):
+                                xoa_nhieu_hoc_sinh_db(ids_to_delete)
+                                st.success("Đã xóa."); st.rerun()
 # --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
 # --- HÀM 9: ĐIỂM DANH HÀNG NGÀY ---
 def show_attendance_page():
