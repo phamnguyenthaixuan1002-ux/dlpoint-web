@@ -567,7 +567,7 @@ def show_quick_record_page():
                     st.rerun() # Tải lại giao diện ngay lập tức
                 else:
                     st.error("Có lỗi xảy ra khi lưu CSDL.")
-# --- HÀM 4: GHI NHẬN KỶ LUẬT (LEO THANG THEO TT19) ---
+# --- HÀM 4: GHI NHẬN KỶ LUẬT (XỬ LÝ HÀNG LOẠT & ĐA LUỒNG TT19) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật & Leo thang Hành vi (TT19)")
     st.markdown("---")
@@ -581,187 +581,190 @@ def show_discipline_page():
 
     student_dict = {f"{hs[1]} (Lớp {hs[2]})": hs[0] for hs in raw_students}
     
-    # Lấy danh sách các sự kiện Vi phạm gốc để trừ điểm
     all_events = get_cached_events()
     violation_events = sorted([e[1] for e in all_events if e[2] == "Vi phạm"])
 
-    col1, col2 = st.columns([1.2, 1], gap="large")
+    col1, col2 = st.columns([1, 1.2], gap="large")
 
     # ==========================================
-    # CỘT TRÁI: CHỌN HỌC SINH & GHI NHẬN HÀNH VI
+    # CỘT TRÁI: CHỌN DANH SÁCH HỌC SINH & HÀNH VI
     # ==========================================
     with col1:
         st.subheader("1. Đối tượng & Hành vi vi phạm")
         
-        # 1. Chọn học sinh
-        selected_student_name = st.selectbox("Chọn học sinh cần xử lý:", options=["-- Chọn học sinh --"] + list(student_dict.keys()), key="disc_hs_v2")
-        event_date = st.date_input("Ngày xử lý:", format="DD/MM/YYYY", key="disc_date_v2")
+        # <<< SỬA ĐỔI: Chuyển thành Multiselect để chọn nhiều HS >>>
+        selected_student_names = st.multiselect("Chọn học sinh vi phạm (Có thể chọn nhiều em):", options=list(student_dict.keys()), key="disc_hs_v3")
+        event_date = st.date_input("Ngày xử lý:", format="DD/MM/YYYY", key="disc_date_v3")
         
         st.markdown("---")
         st.write("📋 **Đánh dấu các nội dung đã nhắc nhở/vi phạm hôm nay:**")
         
-        # 2. Checklist các hành vi cụ thể (Giao diện trực quan)
         col_cb1, col_cb2 = st.columns(2)
         with col_cb1:
-            cb_trat_tu = st.checkbox("Mất trật tự / Nói chuyện riêng")
-            cb_ghi_bai = st.checkbox("Không ghi chép bài đầy đủ")
-            cb_lam_bt = st.checkbox("Không làm bài tập về nhà")
+            cb_trat_tu = st.checkbox("Mất trật tự / Nói chuyện")
+            cb_ghi_bai = st.checkbox("Không ghi chép bài")
+            cb_lam_bt = st.checkbox("Không làm bài tập")
         with col_cb2:
-            cb_dong_phuc = st.checkbox("Vi phạm đồng phục / Tác phong")
+            cb_dong_phuc = st.checkbox("Sai đồng phục / Tác phong")
             cb_di_tre = st.checkbox("Đi học trễ giờ")
-            cb_vo_le = st.checkbox("Vô lễ / Thái độ không tốt")
+            cb_vo_le = st.checkbox("Vô lễ / Thái độ kém")
             
-        # Nơi nhập lỗi khác hoặc chọn lỗi gốc để trừ điểm
         ly_do_khac = st.text_input("Hoặc nhập lý do khác (nếu có):")
-        
-        # Cần 1 lỗi gốc trong CSDL để hệ thống biết đường trừ điểm
-        selected_violation = st.selectbox("Phân loại lỗi chính (để hệ thống trừ điểm):", options=["-- Chọn lỗi gốc --"] + violation_events, key="disc_err_v2")
+        selected_violation = st.selectbox("Phân loại lỗi chính (để hệ thống trừ điểm):", options=["-- Chọn lỗi gốc --"] + violation_events, key="disc_err_v3")
 
     # ==========================================
-    # CỘT PHẢI: LỊCH SỬ & ĐỀ XUẤT LEO THANG
+    # CỘT PHẢI: LỊCH SỬ & ĐỀ XUẤT ĐA LUỒNG
     # ==========================================
     with col2:
-        st.subheader("2. Lịch sử & Đề xuất Xử lý")
+        st.subheader("2. Phân tích & Xử lý")
         
-        if selected_student_name != "-- Chọn học sinh --":
-            student_id = student_dict[selected_student_name]
-            hs_ten_ngan = selected_student_name.split("(")[0].strip()
+        if len(selected_student_names) > 0 and selected_violation != "-- Chọn lỗi gốc --":
+            event_details = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
 
-            # 1. TRUY XUẤT & THỐNG KÊ LỊCH SỬ KỶ LUẬT
-            history = lay_lich_su_ky_luat_cua_hoc_sinh_db(student_id)
-            
-            so_lan_nhac_nho = sum(1 for h in history if h[1] == "Nhắc nhở")
-            so_lan_phe_binh = sum(1 for h in history if h[1] == "Phê bình")
-            so_lan_bien_ban = sum(1 for h in history if h[1] == "Lập Kế hoạch Hỗ trợ (A4)")
+            if event_details and event_details[4]:
+                muc_do = event_details[4]
+                st.info(f"**Mức độ vi phạm chung:** Mức {muc_do}")
 
-            # Hiển thị bảng tóm tắt lịch sử cực kỳ rõ ràng
-            st.markdown(f"""
-            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd;'>
-                <div style='color: gray; font-size: 13px; margin-bottom: 5px;'>Lịch sử xử lý của <b>{hs_ten_ngan}</b>:</div>
-                <div style='display: flex; justify-content: space-between;'>
-                    <div>🟢 Nhắc nhở: <b>{so_lan_nhac_nho}</b> lần</div>
-                    <div>🟠 Phê bình: <b>{so_lan_phe_binh}</b> lần</div>
-                    <div>🔴 Biên bản: <b>{so_lan_bien_ban}</b> lần</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                # 1. CHẠY THUẬT TOÁN PHÂN TÍCH CHO TỪNG HỌC SINH
+                analysis_data = []
+                for name in selected_student_names:
+                    hs_id = student_dict[name]
+                    hs_ten_ngan = name.split("(")[0].strip()
+                    history = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
 
-            # Hiện chi tiết 3 lần gần nhất
-            with st.expander("Xem chi tiết các lần xử lý trước", expanded=False):
-                if history:
-                    for h in history[:3]:
-                        st.write(f"- **{h[1]}** ({h[2].strftime('%d/%m/%Y')}): *{h[3]}*")
-                else:
-                    st.write("Học sinh này chưa từng bị xử lý kỷ luật.")
+                    so_nn = sum(1 for h in history if h[1] == "Nhắc nhở")
+                    so_pb = sum(1 for h in history if h[1] == "Phê bình")
+                    so_bb = sum(1 for h in history if h[1] == "Lập Kế hoạch Hỗ trợ (A4)")
 
-            st.markdown("---")
+                    de_xuat = "Nhắc nhở"
+                    if muc_do == 1: de_xuat = "Phê bình" if so_nn >= 1 else "Nhắc nhở"
+                    elif muc_do == 2: de_xuat = "Lập Kế hoạch Hỗ trợ (A4)" if so_pb >= 1 else "Phê bình"
+                    elif muc_do == 3: de_xuat = "Lập Kế hoạch Hỗ trợ (A4)"
 
-            # 2. THUẬT TOÁN LEO THANG KỶ LUẬT (QUY TẮC CỦA THẦY)
-            # Logic: Chưa bị gì -> Nhắc nhở. Bị nhắc nhở rồi -> Phê bình. Bị phê bình rồi -> Lập Biên bản A4.
-            de_xuat = ""
-            ly_do_de_xuat = ""
-            
-            if so_lan_phe_binh >= 1 or so_lan_bien_ban >= 1:
-                de_xuat = "Lập Kế hoạch Hỗ trợ (A4)"
-                ly_do_de_xuat = "Học sinh đã từng bị Phê bình nhưng tái phạm. Cần lập biên bản làm việc với gia đình."
-            elif so_lan_nhac_nho >= 1:
-                de_xuat = "Phê bình"
-                ly_do_de_xuat = "Học sinh đã được Nhắc nhở trước đó nhưng không khắc phục. Nâng mức xử lý lên Phê bình."
-            else:
-                de_xuat = "Nhắc nhở"
-                ly_do_de_xuat = "Học sinh vi phạm lần đầu. Áp dụng mức độ Nhắc nhở để răn đe."
+                    analysis_data.append({
+                        "ID": hs_id, "Tên Học sinh": hs_ten_ngan, 
+                        "Lịch sử": f"Nhắc nhở: {so_nn} | Phê bình: {so_pb}", 
+                        "Đề xuất của AI": de_xuat, "history_obj": history
+                    })
 
-            st.info(f"💡 **Hệ thống phân tích:** {ly_do_de_xuat}")
-            st.success(f"🚨 **ĐỀ XUẤT XỬ LÝ:** {de_xuat}")
+                # In ra Bảng đề xuất cho GVCN xem tổng quát
+                st.write("📊 **Bảng Phân tích & Đề xuất tự động từ hệ thống:**")
+                df_analysis = pd.DataFrame(analysis_data)
+                st.dataframe(df_analysis[["Tên Học sinh", "Lịch sử", "Đề xuất của AI"]], use_container_width=True, hide_index=True)
 
-            # 3. CHỌN HÌNH THỨC ÁP DỤNG & LƯU
-            hinh_thuc_options = ["Nhắc nhở", "Phê bình", "Viết bản tự kiểm điểm", "Lập Kế hoạch Hỗ trợ (A4)"]
-            hinh_thuc_ap_dung = st.selectbox("Xác nhận Hình thức áp dụng:", hinh_thuc_options, index=hinh_thuc_options.index(de_xuat) if de_xuat in hinh_thuc_options else 0, key="disc_action_v2")
-            
-            # Gom các hành vi đã tick thành 1 câu chuỗi
-            danh_sach_loi = []
-            if cb_trat_tu: danh_sach_loi.append("Mất trật tự")
-            if cb_ghi_bai: danh_sach_loi.append("Không ghi bài")
-            if cb_lam_bt: danh_sach_loi.append("Không làm bài tập")
-            if cb_dong_phuc: danh_sach_loi.append("Sai đồng phục")
-            if cb_di_tre: danh_sach_loi.append("Đi trễ")
-            if cb_vo_le: danh_sach_loi.append("Thái độ/Vô lễ")
-            if ly_do_khac: danh_sach_loi.append(ly_do_khac)
-            
-            chuoi_hanh_vi = ", ".join(danh_sach_loi)
+                st.markdown("---")
 
-            # ==========================================
-            # TRƯỜNG HỢP 1: LẬP BIÊN BẢN A4
-            # ==========================================
-            if hinh_thuc_ap_dung == "Lập Kế hoạch Hỗ trợ (A4)":
-                st.warning("⚠️ **Vui lòng điền các cam kết dưới đây để in Biên bản A4.**")
+                # 2. LỰA CHỌN HÌNH THỨC ÁP DỤNG
+                hinh_thuc_options = [
+                    "✨ Tự động áp dụng theo Đề xuất của từng em (Khuyên dùng)", 
+                    "Áp dụng chung: Nhắc nhở", 
+                    "Áp dụng chung: Phê bình", 
+                    "Áp dụng chung: Viết bản tự kiểm điểm", 
+                    "Áp dụng chung: Lập Kế hoạch Hỗ trợ (A4)"
+                ]
+                hinh_thuc_ap_dung = st.selectbox("Xác nhận Hình thức áp dụng:", hinh_thuc_options, key="disc_action_v3")
                 
-                with st.container(border=True):
-                    i_behavior = st.text_input("Hành vi đang xảy ra:", value=chuoi_hanh_vi)
-                    i_impact = st.text_input("Ảnh hưởng:", placeholder="VD: Làm lớp mất tập trung, ảnh hưởng thi đua...")
-                    
-                    auto_history = "; ".join([f"{h[1]} ({h[2].strftime('%d/%m')})" for h in history[:2]]) if history else "Đã nhắc nhở nhiều lần."
-                    i_history = st.text_input("Những lần đã hỗ trợ/nhắc nhở:", value=auto_history)
-                    
-                    st.markdown("**Các bên cam kết:**")
-                    i_hs_commit = st.text_area("🧑‍🎓 Học sinh cam kết 2 việc:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=80)
-                    i_ph_commit = st.text_area("👨‍👩‍👦 Gia đình hỗ trợ 2 việc:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=80)
-                    i_gv_commit = st.text_area("🏫 GVCN hỗ trợ 2 việc:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=80)
-                    
-                    if st.button("🖨️ Lưu CSDL & Xuất Biên Bản A4", type="primary", use_container_width=True):
-                        if selected_violation == "-- Chọn lỗi gốc --":
-                            st.error("Vui lòng chọn 'Phân loại lỗi chính' ở cột bên trái để hệ thống tính điểm trừ.")
-                        elif not all([i_behavior, i_impact, i_hs_commit]):
-                            st.error("Vui lòng điền đủ các trường bắt buộc.")
-                        else:
-                            event_details = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
-                            _, _, loai_sk, diem_sk, _ = event_details
-                            ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
-                            
-                            success_db, msg = them_su_kien_va_ky_luat_db(student_id, f"{selected_violation} ({chuoi_hanh_vi})", loai_sk, diem_sk, ngay_tao_str, hinh_thuc_ap_dung, f"Lý do: {chuoi_hanh_vi}. Ảnh hưởng: {i_impact}")
-                            
-                            if success_db:
-                                import tempfile
-                                import os
-                                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp: filepath = tmp.name
-                                
-                                from pdf_report import generate_intervention_pdf
-                                success_pdf, pdf_msg = generate_intervention_pdf(
-                                    hs_ten_ngan, user['class'], i_behavior, i_impact, i_history, i_hs_commit, i_ph_commit, i_gv_commit, filepath
-                                )
-                                
-                                if success_pdf:
-                                    st.success("✅ Đã lưu CSDL và tạo File thành công!")
-                                    with open(filepath, "rb") as f: pdf_data = f.read()
-                                    st.download_button("📥 TẢI XUỐNG BIÊN BẢN A4", data=pdf_data, file_name=f"BienBan_{hs_ten_ngan}.pdf", mime="application/pdf", type="primary", use_container_width=True)
-                                    os.unlink(filepath)
-                            else: st.error(f"Lỗi CSDL: {msg}")
+                # Kiểm tra xem có em nào bị dính mức A4 không
+                has_a4 = False
+                if hinh_thuc_ap_dung == "✨ Tự động áp dụng theo Đề xuất của từng em (Khuyên dùng)":
+                    has_a4 = any(hs["Đề xuất của AI"] == "Lập Kế hoạch Hỗ trợ (A4)" for hs in analysis_data)
+                elif hinh_thuc_ap_dung == "Áp dụng chung: Lập Kế hoạch Hỗ trợ (A4)":
+                    has_a4 = True
 
-            # ==========================================
-            # TRƯỜNG HỢP 2: KỶ LUẬT THÔNG THƯỜNG (Nhắc nhở / Phê bình)
-            # ==========================================
-            else:
-                if st.button(f"💾 Lưu Kỷ luật: {hinh_thuc_ap_dung}", type="primary", use_container_width=True):
-                    if selected_violation == "-- Chọn lỗi gốc --":
-                        st.error("Vui lòng chọn 'Phân loại lỗi chính' ở cột bên trái để hệ thống tính điểm trừ.")
-                    elif not chuoi_hanh_vi:
-                        st.error("Vui lòng tick chọn ít nhất 1 hành vi vi phạm ở cột bên trái.")
-                    else:
-                        event_details = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
-                        _, _, loai_sk, diem_sk, _ = event_details
-                        ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
+                danh_sach_loi = []
+                if cb_trat_tu: danh_sach_loi.append("Mất trật tự")
+                if cb_ghi_bai: danh_sach_loi.append("Không ghi bài")
+                if cb_lam_bt: danh_sach_loi.append("Không làm bài tập")
+                if cb_dong_phuc: danh_sach_loi.append("Sai đồng phục")
+                if cb_di_tre: danh_sach_loi.append("Đi trễ")
+                if cb_vo_le: danh_sach_loi.append("Thái độ/Vô lễ")
+                if ly_do_khac: danh_sach_loi.append(ly_do_khac)
+                chuoi_hanh_vi = ", ".join(danh_sach_loi)
+
+                # ==========================================
+                # FORM ĐIỀN A4 (CHỈ HIỆN KHI CÓ ÍT NHẤT 1 EM BỊ MỨC A4)
+                # ==========================================
+                if has_a4:
+                    st.warning("⚠️ Có học sinh nằm trong diện phải **Lập Kế hoạch Hỗ trợ (A4)**. Thầy/Cô vui lòng điền nội dung để hệ thống tự động sinh Biên bản cho các em.")
+                    with st.container(border=True):
+                        i_behavior = st.text_input("Hành vi đang xảy ra:", value=chuoi_hanh_vi)
+                        i_impact = st.text_input("Ảnh hưởng:", placeholder="VD: Làm lớp mất tập trung, ảnh hưởng thi đua...")
+                        i_history = st.text_input("Lịch sử nhắc nhở:", value="(Hệ thống tự động điền riêng theo lịch sử của từng học sinh)", disabled=True)
                         
-                        # Ghi chú sẽ chứa chi tiết các hành vi đã tick
-                        ghi_chu_luu = f"Các hành vi: {chuoi_hanh_vi}"
-                        mo_ta_sk = f"{selected_violation} ({chuoi_hanh_vi})"
+                        st.markdown("**Các bên cam kết:**")
+                        i_hs_commit = st.text_area("🧑‍🎓 Học sinh cam kết 2 việc:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=60)
+                        i_ph_commit = st.text_area("👨‍👩‍👦 Gia đình hỗ trợ 2 việc:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=60)
+                        i_gv_commit = st.text_area("🏫 GVCN hỗ trợ 2 việc:", placeholder="- Việc 1: Nhắc nhở kiểm tra mỗi sáng\n- Việc 2: ...", height=60)
                         
-                        success, msg = them_su_kien_va_ky_luat_db(student_id, mo_ta_sk, loai_sk, diem_sk, ngay_tao_str, hinh_thuc_ap_dung, ghi_chu_luu)
-                        if success: 
-                            st.toast(f"Đã lưu kỷ luật thành công!", icon="✅")
+                        if st.button("🖨️ Lưu CSDL & Xuất Hàng Loạt Biên Bản A4", type="primary", use_container_width=True):
+                            if not all([i_behavior, i_impact, i_hs_commit]): st.error("Vui lòng điền đủ các cam kết.")
+                            else:
+                                _, _, loai_sk, diem_sk, _ = event_details
+                                ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
+                                
+                                pdf_files = []
+                                success_count = 0
+                                import tempfile, os, zipfile
+                                from pdf_report import generate_intervention_pdf
+                                
+                                with st.spinner("Đang xử lý dữ liệu và tạo PDF..."):
+                                    with tempfile.TemporaryDirectory() as tmpdirname:
+                                        for hs in analysis_data:
+                                            # Xác định mức phạt cuối cùng cho em này
+                                            if hinh_thuc_ap_dung == "✨ Tự động áp dụng theo Đề xuất của từng em (Khuyên dùng)":
+                                                final_action = hs["Đề xuất của AI"]
+                                            else:
+                                                final_action = hinh_thuc_ap_dung.replace("Áp dụng chung: ", "")
+                                            
+                                            # Lưu DB
+                                            if them_su_kien_va_ky_luat_db(hs["ID"], f"{selected_violation} ({chuoi_hanh_vi})", loai_sk, diem_sk, ngay_tao_str, final_action, f"Lý do: {chuoi_hanh_vi}"):
+                                                success_count += 1
+                                                
+                                                # Nếu em này bị mức A4 thì tạo PDF riêng cho ẻm
+                                                if final_action == "Lập Kế hoạch Hỗ trợ (A4)":
+                                                    hist_txt = "; ".join([f"{h[1]} ({h[2].strftime('%d/%m')})" for h in hs['history_obj'][:2]]) if hs['history_obj'] else "Đã nhắc nhở nhiều lần."
+                                                    safe_name = "".join(x for x in hs['Tên HS'] if x.isalnum() or x in " _-").replace(" ", "_")
+                                                    filepath = os.path.join(tmpdirname, f"BienBan_{safe_name}.pdf")
+                                                    
+                                                    if generate_intervention_pdf(hs['Tên HS'], user['class'], i_behavior, i_impact, hist_txt, i_hs_commit, i_ph_commit, i_gv_commit, filepath)[0]:
+                                                        pdf_files.append((f"BienBan_{safe_name}.pdf", filepath))
+                                        
+                                        # Nén ZIP nếu có nhiều file PDF
+                                        if len(pdf_files) > 0:
+                                            st.success(f"✅ Đã lưu CSDL cho {success_count} học sinh và tạo {len(pdf_files)} biên bản A4!")
+                                            if len(pdf_files) == 1:
+                                                with open(pdf_files[0][1], "rb") as f: st.download_button("📥 TẢI XUỐNG BIÊN BẢN A4", data=f.read(), file_name=pdf_files[0][0], mime="application/pdf", type="primary", use_container_width=True)
+                                            else:
+                                                zip_buf = io.BytesIO()
+                                                with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                                                    for fname, fpath in pdf_files: zf.write(fpath, arcname=fname)
+                                                st.download_button(f"📦 TẢI FILE ZIP {len(pdf_files)} BIÊN BẢN", data=zip_buf.getvalue(), file_name="DanhSach_BienBan.zip", mime="application/zip", type="primary", use_container_width=True)
+                                        else:
+                                            st.success(f"✅ Đã lưu kỷ luật thành công cho {success_count} học sinh!")
+
+                # ==========================================
+                # NẾU CẢ NHÓM CHỈ BỊ NHẮC NHỞ / PHÊ BÌNH (KHÔNG CÓ A4)
+                # ==========================================
+                else:
+                    ghi_chu = st.text_area("Ghi chú chung của GV (Tùy chọn):")
+                    if st.button(f"💾 Xác nhận Xử lý cho {len(selected_student_names)} học sinh", type="primary", use_container_width=True):
+                        if selected_violation == "-- Chọn lỗi gốc --" or not chuoi_hanh_vi:
+                            st.error("Vui lòng tick chọn lỗi và phân loại lỗi.")
+                        else:
+                            _, _, loai_sk, diem_sk, _ = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
+                            ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
+                            count = 0
+                            
+                            with st.spinner("Đang lưu dữ liệu..."):
+                                for hs in analysis_data:
+                                    final_action = hs["Đề xuất của AI"] if hinh_thuc_ap_dung == "✨ Tự động áp dụng theo Đề xuất của từng em (Khuyên dùng)" else hinh_thuc_ap_dung.replace("Áp dụng chung: ", "")
+                                    if them_su_kien_va_ky_luat_db(hs["ID"], f"{selected_violation} ({chuoi_hanh_vi})", loai_sk, diem_sk, ngay_tao_str, final_action, f"{chuoi_hanh_vi}. {ghi_chu}"):
+                                        count += 1
+                                        
+                            st.toast(f"✅ Đã xử lý kỷ luật thành công cho {count} học sinh!", icon="✅")
                             st.rerun()
-                        else: st.error(f"Lỗi: {msg}")
         else:
-            st.write("👈 Vui lòng chọn học sinh ở cột bên trái để hệ thống phân tích lịch sử.")
+            st.write("👈 Vui lòng chọn (các) học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
 # --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG & BẢN ĐỒ HÀNH VI) ---
 def show_statistics_page():
     st.header("📊 Phân tích & Cảnh báo Rèn luyện")
