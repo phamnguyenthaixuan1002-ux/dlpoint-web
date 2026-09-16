@@ -29,7 +29,8 @@ from database import (
     cap_nhat_xu_thuong_db, 
     lay_so_du_xu_db, #<<< THÊM 2 HÀM NÀY
     xoa_su_kien_ren_luyen_db,  # <<< THÊM HÀM NÀY VÀO ĐÂY# 
-    luu_nhat_ky_phan_hoi_thang_db, lay_lich_su_phan_hoi_db # <<< THÊM 2 HÀM NÀY
+    luu_nhat_ky_phan_hoi_thang_db, lay_lich_su_phan_hoi_db, # <<< THÊM 2 HÀM NÀY
+    gui_thu_gop_y_db, lay_thu_gop_y_db, cap_nhat_trang_thai_thu_db
 )
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
@@ -149,39 +150,73 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_info = None
 
-# --- HÀM 1: GIAO DIỆN ĐĂNG NHẬP (ĐÃ KHÓA FORM CHỐNG LỖI) ---
+# --- HÀM 1: GIAO DIỆN ĐĂNG NHẬP & HÒM THƯ CÔNG KHAI ---
 def show_login_page():
+    # Dùng session_state để chuyển đổi giữa màn hình Đăng nhập và Màn hình Gửi thư
+    if 'mode' not in st.session_state: st.session_state.mode = 'login'
+
     st.title("🎓 Hệ thống Quản lý DLPOINT 2.0")
     st.markdown("---")
     
-    # Tạo 3 cột để căn giữa form đăng nhập
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        st.subheader("Đăng nhập")
-        
-        # <<< SỬ DỤNG st.form ĐỂ KHÓA CHẶT QUÁ TRÌNH NHẬP LIỆU >>>
-        with st.form("form_dang_nhap"):
-            username = st.text_input("Tên đăng nhập")
-            password = st.text_input("Mật khẩu", type="password")
-            
-            # Nút Đăng nhập giờ đây là Nút Submit của Form
-            submitted = st.form_submit_button("Đăng nhập", type="primary", use_container_width=True)
-            
-            if submitted:
-                # Chỉ kiểm tra CSDL khi người dùng thực sự bấm nút
-                if not username or not password:
-                    st.warning("Vui lòng nhập đầy đủ tài khoản và mật khẩu.")
-                else:
-                    user = verify_user(username, password)
-                    if user:
-                        # Đăng nhập thành công, lưu thông tin vào session
-                        st.session_state.logged_in = True
-                        st.session_state.user_info = user
-                        st.rerun() # Tải lại trang web để chuyển vào Dashboard
+    if st.session_state.mode == 'login':
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.subheader("Đăng nhập Hệ thống")
+            with st.form("form_dang_nhap"):
+                username = st.text_input("Tên đăng nhập")
+                password = st.text_input("Mật khẩu", type="password")
+                submitted = st.form_submit_button("Đăng nhập", type="primary", use_container_width=True)
+                
+                if submitted:
+                    if not username or not password: st.warning("Vui lòng nhập đầy đủ tài khoản và mật khẩu.")
                     else:
-                        st.error("❌ Tên đăng nhập hoặc mật khẩu không đúng!")
+                        user = verify_user(username, password)
+                        if user:
+                            st.session_state.logged_in = True
+                            st.session_state.user_info = user
+                            st.rerun() 
+                        else: st.error("❌ Sai tài khoản hoặc mật khẩu!")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.info("💡 **Dành cho Học sinh & Giáo viên bộ môn:**")
+            if st.button("📮 Mở Hòm thư Góp ý / Báo cáo Khẩn cấp", use_container_width=True):
+                st.session_state.mode = 'sos'
+                st.rerun()
 
+    elif st.session_state.mode == 'sos':
+        col1, col2, col3 = st.columns([1, 2.5, 1])
+        with col2:
+            st.subheader("📮 Hòm Thư Lắng Nghe")
+            st.write("Nơi tiếp nhận góp ý của Giáo viên bộ môn và Báo cáo ẩn danh của Học sinh.")
+            
+            with st.form("form_gui_thu"):
+                loai_nguoi_gui = st.radio("Bạn là ai?", ["Giáo viên bộ môn", "Học sinh / Phụ huynh"], horizontal=True)
+                
+                if loai_nguoi_gui == "Giáo viên bộ môn":
+                    nguoi_gui = st.text_input("Họ tên & Môn dạy (VD: Cô Lan - Toán):")
+                    loai_thu = "Góp ý từ GVBM"
+                else:
+                    an_danh = st.checkbox("Gửi ẩn danh (Bảo mật tuyệt đối danh tính của em)", value=True)
+                    nguoi_gui = "Ẩn danh" if an_danh else st.text_input("Họ tên của em (Tùy chọn):", value="Ẩn danh")
+                    loai_thu = st.selectbox("Phân loại tin nhắn:", ["Báo cáo Khẩn cấp (Bạo lực, SOS...)", "Tư vấn tâm lý", "Góp ý xây dựng lớp"])
+                
+                classes, _ = get_distinct_classes_and_groups_db()
+                lop_lien_quan = st.selectbox("Gửi đến GVCN Lớp nào? *", ["-- Chọn lớp --"] + classes)
+                noi_dung = st.text_area("Nội dung chi tiết *", placeholder="Nhập nội dung vào đây. Nếu phản ánh học sinh cụ thể, vui lòng ghi rõ họ tên học sinh...", height=150)
+                
+                if st.form_submit_button("📤 Gửi Tin Nhắn", type="primary", use_container_width=True):
+                    if lop_lien_quan == "-- Chọn lớp --" or not noi_dung:
+                        st.error("Vui lòng chọn Lớp và nhập Nội dung.")
+                    elif loai_nguoi_gui == "Giáo viên bộ môn" and not nguoi_gui:
+                        st.error("Vui lòng nhập Họ tên và Môn dạy của thầy/cô.")
+                    else:
+                        if gui_thu_gop_y_db(loai_thu, nguoi_gui, lop_lien_quan, noi_dung):
+                            st.success("✅ Đã gửi thư thành công! Cảm ơn bạn đã chia sẻ. GVCN sẽ tiếp nhận và xử lý sớm nhất.")
+                        else: st.error("Có lỗi xảy ra.")
+            
+            if st.button("⬅️ Quay lại trang Đăng nhập"):
+                st.session_state.mode = 'login'
+                st.rerun()
 # --- HÀM 3: QUẢN LÝ LỚP HỌC & HỒ SƠ 360 (GIAO DIỆN TƯƠNG TÁC MỚI) ---
 def show_class_management():
     st.header("👨‍🎓 Quản lý Lớp học & Hồ sơ 360°")
@@ -1996,6 +2031,8 @@ def show_main_dashboard():
         show_attendance_page()
     elif choice == "Ghi nhận Nhanh":
         show_quick_record_page()
+    elif choice == "Hòm thư Lắng nghe":
+        show_inbox_page()
     elif choice == "Ghi nhận Kỷ luật (TT19)":
         show_discipline_page()
     elif choice == "Thống kê & Báo cáo":
@@ -2602,6 +2639,59 @@ def show_seating_chart_page():
     master_html += "</div></div>"
     
     st.markdown(master_html, unsafe_allow_html=True)
+# --- HÀM 12: HỘP THƯ ĐẾN CỦA GVCN ---
+def show_inbox_page():
+    st.header("📮 Hộp Thư Lắng Nghe")
+    st.markdown("---")
+
+    user = st.session_state.user_info
+    role, aclass = user['role'], user['class']
+
+    if role not in ['gvcn', 'admin']:
+        st.error("Chức năng này chỉ dành cho Giáo viên chủ nhiệm.")
+        return
+
+    thu_den = lay_thu_gop_y_db(role, aclass)
+    
+    if not thu_den:
+        st.success("Hòm thư hiện tại đang trống. Không có báo cáo nào mới!")
+        st.image("https://cdn-icons-png.flaticon.com/512/3254/3254605.png", width=150)
+        return
+
+    chua_doc = sum(1 for t in thu_den if t[5] == 'Chưa đọc')
+    if chua_doc > 0: st.warning(f"🔔 Thầy/Cô có **{chua_doc}** thư mới chưa xử lý!")
+    else: st.info("Tất cả các thư đã được xử lý.")
+
+    # Hiển thị từng lá thư
+    for thu in thu_den:
+        t_id, loai_thu, ng_gui, lop, noi_dung, trang_thai, ngay_gui = thu
+        
+        # Đổ màu khung thư tùy theo loại
+        bg_color = "#fff5f5" if "Khẩn cấp" in loai_thu else "#f0f7ff" if "GVBM" in loai_thu else "#f8f9fa"
+        border_color = "#ff4b4b" if "Khẩn cấp" in loai_thu else "#0078D7" if "GVBM" in loai_thu else "#bdc3c7"
+        icon = "🚨" if "Khẩn cấp" in loai_thu else "👨‍🏫" if "GVBM" in loai_thu else "💌"
+        
+        with st.container(border=False):
+            st.markdown(f"""
+            <div style='background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
+                <div style='display:flex; justify-content:space-between; margin-bottom: 10px;'>
+                    <div style='font-size: 16px; font-weight: bold; color: {border_color};'>{icon} {loai_thu}</div>
+                    <div style='font-size: 13px; color: gray;'>{ngay_gui.strftime('%d/%m/%Y %H:%M')}</div>
+                </div>
+                <div style='font-size: 14px; margin-bottom: 10px;'><b>Từ:</b> {ng_gui} {f'(Gửi lớp {lop})' if role=='admin' else ''}</div>
+                <div style='font-size: 15px; line-height: 1.5; color: #333; padding: 10px; background-color: rgba(255,255,255,0.6); border-radius: 5px;'>{noi_dung}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Nút đánh dấu đã xử lý
+            if trang_thai == 'Chưa đọc':
+                if st.button("✔️ Đánh dấu Đã xử lý", key=f"btn_read_{t_id}"):
+                    cap_nhat_trang_thai_thu_db(t_id, 'Đã xử lý')
+                    st.rerun()
+            else:
+                st.markdown("<div style='text-align: right; color: green; font-size: 13px; font-weight: bold;'>✅ Đã xử lý</div>", unsafe_allow_html=True)
+            
+            st.write("<br>", unsafe_allow_html=True)
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
