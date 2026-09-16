@@ -914,3 +914,47 @@ def lay_lich_su_phan_hoi_db(hs_id):
         return []
     except Exception:
         return []
+# --- CÁC HÀM QUẢN LÝ HÒM THƯ SOS & GÓP Ý ---
+
+def gui_thu_gop_y_db(loai_thu, nguoi_gui, lop_lien_quan, noi_dung):
+    """Gửi một lá thư mới vào hệ thống."""
+    sql = "INSERT INTO hom_thu_gop_y (loai_thu, nguoi_gui, lop_lien_quan, noi_dung) VALUES (%s, %s, %s, %s)"
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (loai_thu, nguoi_gui, lop_lien_quan, noi_dung))
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"Lỗi gửi thư: {e}")
+        return False
+
+def lay_thu_gop_y_db(role, aclass):
+    """Lấy danh sách thư, GVCN chỉ xem thư của lớp mình, Admin xem toàn bộ."""
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    if role == 'admin':
+                        sql = "SELECT id, loai_thu, nguoi_gui, lop_lien_quan, noi_dung, trang_thai, ngay_gui FROM hom_thu_gop_y ORDER BY trang_thai ASC, ngay_gui DESC"
+                        cursor.execute(sql)
+                    else:
+                        sql = "SELECT id, loai_thu, nguoi_gui, lop_lien_quan, noi_dung, trang_thai, ngay_gui FROM hom_thu_gop_y WHERE lop_lien_quan = %s ORDER BY trang_thai ASC, ngay_gui DESC"
+                        cursor.execute(sql, (aclass,))
+                    return cursor.fetchall()
+        return []
+    except Exception:
+        return []
+
+def cap_nhat_trang_thai_thu_db(thu_id, trang_thai_moi):
+    """Đánh dấu thư là Đã xử lý hoặc Chưa đọc."""
+    sql = "UPDATE hom_thu_gop_y SET trang_thai = %s WHERE id = %s"
+    try:
+        with get_db_connection() as conn:
+            if conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (trang_thai_moi, thu_id))
+                conn.commit()
+                return True
+    except Exception: return False
