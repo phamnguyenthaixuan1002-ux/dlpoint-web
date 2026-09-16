@@ -181,17 +181,19 @@ def generate_pdf_report(student_id, year, month, teacher_name, filepath):
         return True, "Tạo báo cáo PDF thành công."
     except Exception as e:
         return False, f"Lỗi khi lưu file PDF: {e}"
-# --- DÁN HÀM NÀY VÀO CUỐI FILE pdf_report.py ---
+# --- DÁN HÀM NÀY VÀO DƯỚI CÙNG FILE pdf_report.py ---
 
 def generate_intervention_pdf(student_name, class_name, behavior, impact, history, st_commit, pa_commit, te_commit, filepath):
     from fpdf import FPDF
     from datetime import datetime, timedelta
+    import os # Đảm bảo đã import os
+    from config import FONT_REGULAR_PATH, FONT_BOLD_PATH, FONT_ITALIC_PATH # Lấy đường dẫn font
     
     pdf = FPDF()
     pdf.add_page()
     
     try:
-        # Nạp font tiếng Việt (Giống các hàm trước)
+        # Nạp font tiếng Việt
         pdf.add_font('VnFont', '', FONT_REGULAR_PATH, uni=True)
         pdf.add_font('VnFont', 'B', FONT_BOLD_PATH, uni=True)
         pdf.add_font('VnFont', 'I', FONT_ITALIC_PATH, uni=True)
@@ -234,27 +236,23 @@ def generate_intervention_pdf(student_name, class_name, behavior, impact, histor
     pdf.multi_cell(0, 7, str(history))
     pdf.ln(3)
 
-    # --- PHẦN 2: CAM KẾT HÀNH ĐỘNG (RẤT QUAN TRỌNG) ---
+    # --- PHẦN 2: CAM KẾT HÀNH ĐỘNG ---
     pdf.set_font('VnFont', 'B', 12)
     pdf.cell(0, 8, '2. KẾ HOẠCH HÀNH ĐỘNG (Trong 14 ngày tới)', 0, 1)
     
-    # Kẻ bảng cho phần cam kết để trông trang trọng
     line_h = 7
     pdf.set_fill_color(240, 240, 240)
     
-    # Học sinh
     pdf.set_font('VnFont', 'B', 11)
     pdf.cell(0, line_h, ' 🧑‍🎓 Học sinh cam kết thực hiện 2 việc sau:', 1, 1, 'L', 1)
     pdf.set_font('VnFont', '', 11)
     pdf.multi_cell(0, line_h, str(st_commit), 1, 'L')
     
-    # Gia đình
     pdf.set_font('VnFont', 'B', 11)
     pdf.cell(0, line_h, ' 👨‍👩‍👦 Gia đình cam kết hỗ trợ 2 việc sau:', 1, 1, 'L', 1)
     pdf.set_font('VnFont', '', 11)
     pdf.multi_cell(0, line_h, str(pa_commit), 1, 'L')
     
-    # Nhà trường
     pdf.set_font('VnFont', 'B', 11)
     pdf.cell(0, line_h, ' 🏫 Nhà trường / GVCN cam kết hỗ trợ 2 việc sau:', 1, 1, 'L', 1)
     pdf.set_font('VnFont', '', 11)
@@ -286,16 +284,14 @@ def generate_intervention_pdf(student_name, class_name, behavior, impact, histor
     pdf.set_font('VnFont', 'B', 11)
     y_sig = pdf.get_y()
     
-    # Hàng 1
     pdf.set_y(y_sig); pdf.set_x(10); pdf.cell(90, 6, 'HỌC SINH', 0, 0, 'C')
     pdf.set_y(y_sig); pdf.set_x(100); pdf.cell(100, 6, 'GIA ĐÌNH HỌC SINH', 0, 1, 'C')
     pdf.set_font('VnFont', 'I', 10)
     pdf.set_y(y_sig+6); pdf.set_x(10); pdf.cell(90, 6, '(Ký, ghi rõ họ tên)', 0, 0, 'C')
     pdf.set_y(y_sig+6); pdf.set_x(100); pdf.cell(100, 6, '(Ký, ghi rõ họ tên)', 0, 1, 'C')
     
-    pdf.ln(25) # Khoảng trống ký tên
+    pdf.ln(25) 
     
-    # Hàng 2
     y_sig_2 = pdf.get_y()
     pdf.set_font('VnFont', 'B', 11)
     pdf.set_y(y_sig_2); pdf.set_x(10); pdf.cell(90, 6, 'GIÁO VIÊN CHỦ NHIỆM', 0, 0, 'C')
