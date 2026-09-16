@@ -150,6 +150,13 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_info = None
 
+if 'mode' not in st.session_state: 
+    st.session_state.mode = 'login'
+
+# <<< TÍNH NĂNG MỚI: ĐỌC ĐƯỜNG LINK ĐỂ CHẠY THẲNG VÀO HÒM THƯ >>>
+if "page" in st.query_params:
+    if st.query_params.get("page") == "sos":
+        st.session_state.mode = 'sos'
 # --- HÀM 1: GIAO DIỆN ĐĂNG NHẬP & HÒM THƯ CÔNG KHAI ---
 def show_login_page():
     # Dùng session_state để chuyển đổi giữa màn hình Đăng nhập và Màn hình Gửi thư
@@ -2693,6 +2700,48 @@ def show_inbox_page():
                 st.markdown("<div style='text-align: right; color: green; font-size: 13px; font-weight: bold;'>✅ Đã xử lý</div>", unsafe_allow_html=True)
             
             st.write("<br>", unsafe_allow_html=True)
+# =======================================================
+    # KHU VỰC TẠO VÀ IN MÃ QR CHO HÒM THƯ
+    # =======================================================
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    with st.expander("🖨️ TẠO VÀ TẢI MÃ QR HÒM THƯ GÓP Ý (Để dán tại lớp/hành lang)", expanded=False):
+        import qrcode
+        import io
+        
+        st.write("Thầy/Cô hãy copy đường link gốc của phần mềm (Ví dụ: *https://dlpoint-thayxuan.streamlit.app*) và dán vào ô bên dưới:")
+        app_url = st.text_input("Đường link App của trường:", value="", placeholder="https://...")
+        
+        if app_url and app_url.startswith("http"):
+            # Tự động tạo link đi tắt
+            sos_url = f"{app_url.rstrip('/')}/?page=sos"
+            st.info(f"🔗 Link quét QR sẽ dẫn thẳng tới: **{sos_url}**")
+            
+            # Khởi tạo mã QR
+            qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
+            qr.add_data(sos_url)
+            qr.make(fit=True)
+            
+            # Tạo ảnh QR
+            img_qr = qr.make_image(fill_color="black", back_color="white")
+            buf = io.BytesIO()
+            img_qr.save(buf, format="PNG")
+            
+            col_qr1, col_qr2 = st.columns([1, 2])
+            with col_qr1:
+                st.image(buf.getvalue(), width=200, caption="Quét thử bằng Zalo/Camera")
+            with col_qr2:
+                st.write("**Hướng dẫn sử dụng:**")
+                st.write("1. Bấm nút tải ảnh Mã QR bên dưới về máy tính.")
+                st.write("2. Mở file Word, chèn ảnh Mã QR này vào, gõ thêm dòng chữ thật to: **'QUÉT MÃ ĐỂ GỬI GÓP Ý / BÁO CÁO KHẨN CẤP ĐẾN GVCN'**.")
+                st.write("3. In ra giấy và dán lên bảng tin của lớp học.")
+                
+                st.download_button(
+                    label="📥 Tải Ảnh Mã QR Về Máy",
+                    data=buf.getvalue(),
+                    file_name="Ma_QR_HomThu_SOS.png",
+                    mime="image/png",
+                    type="primary"
+                )
 # --- ĐIỀU HƯỚNG ---
 if not st.session_state.logged_in:
     show_login_page()
