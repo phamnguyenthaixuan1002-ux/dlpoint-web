@@ -8,3 +8,4 @@ matplotlib
 Pillow
 streamlit-option-menu
 google-genai
+qrcode
