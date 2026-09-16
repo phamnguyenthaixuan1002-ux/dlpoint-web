@@ -35,7 +35,7 @@ from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem
 from excel_export import generate_weekly_summary_excel, generate_monthly_summary_excel
 from config import DIEM_KHOI_DAU, xep_loai_hanh_kiem, get_school_week_number, HOLIDAY_SETTINGS_KEY # <<< THÊM 2 HÀM/BIẾN CUỐI
 # Thêm hàm tạo PDF từ file cũ
-from pdf_report import generate_pdf_report  # <<< THÊM DÒNG NÀY
+from pdf_report import generate_pdf_report, generate_intervention_pdf # <<< THÊM HÀM NÀY
 from streamlit_option_menu import option_menu # Thư viện tạo Menu bo góc
 # BỘ NHỚ ĐỆM (CACHING) GIÚP APP CHẠY SIÊU NHANH TRÊN MOBILE
 # =========================================================
@@ -567,97 +567,130 @@ def show_quick_record_page():
                     st.rerun() # Tải lại giao diện ngay lập tức
                 else:
                     st.error("Có lỗi xảy ra khi lưu CSDL.")
-# --- HÀM 4: GHI NHẬN KỶ LUẬT (TT19) ---
+# --- HÀM 4: GHI NHẬN KỶ LUẬT (CÓ CHỨC NĂNG LẬP KẾ HOẠCH HỖ TRỢ A4) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật (Theo Thông tư 19)")
     st.markdown("---")
 
     user = st.session_state.user_info
     
-    # 1. Lấy danh sách Học sinh & Lỗi vi phạm từ CSDL
-    raw_students = lay_danh_sach_hoc_sinh_db(user['role'], user['class'], user['group'])
+    raw_students = get_cached_students(user['role'], user['class'], user['group'])
     if not raw_students:
         st.warning("Không có học sinh nào trong phạm vi quản lý.")
         return
 
-    # Tạo một "Từ điển" để web hiển thị Tên đẹp mắt, nhưng ngầm hiểu ID ở bên trong
     student_dict = {f"{hs[1]} (Lớp {hs[2]})": hs[0] for hs in raw_students}
     
-    all_events = lay_tat_ca_danh_muc_su_kien_db()
-    # Lấy các sự kiện là Vi phạm và có Mức độ (1, 2 hoặc 3)
+    all_events = get_cached_events()
     violation_events = sorted([e[1] for e in all_events if e[2] == "Vi phạm" and e[4] is not None])
 
-    # 2. Tạo giao diện 2 cột
     col1, col2 = st.columns([1, 1], gap="large")
 
-    # --- CỘT TRÁI: NHẬP LIỆU ---
     with col1:
         st.subheader("1. Chọn đối tượng & Vi phạm")
-        selected_student_name = st.selectbox("Chọn học sinh:", options=["-- Chọn học sinh --"] + list(student_dict.keys()))
-        event_date = st.date_input("Ngày vi phạm:", format="DD/MM/YYYY")
-        selected_violation = st.selectbox("Chọn vi phạm:", options=["-- Chọn lỗi vi phạm --"] + violation_events)
+        selected_student_name = st.selectbox("Chọn học sinh:", options=["-- Chọn học sinh --"] + list(student_dict.keys()), key="disc_hs")
+        event_date = st.date_input("Ngày vi phạm:", format="DD/MM/YYYY", key="disc_date")
+        selected_violation = st.selectbox("Chọn vi phạm:", options=["-- Chọn lỗi vi phạm --"] + violation_events, key="disc_err")
 
-    # --- CỘT PHẢI: PHÂN TÍCH & ĐỀ XUẤT ---
     with col2:
-        st.subheader("2. Phân tích & Đề xuất (Tự động)")
+        st.subheader("2. Phân tích & Xử lý")
         
-        # Chỉ phân tích khi GV đã chọn đủ HS và Lỗi
         if selected_student_name != "-- Chọn học sinh --" and selected_violation != "-- Chọn lỗi vi phạm --":
             student_id = student_dict[selected_student_name]
+            hs_ten_ngan = selected_student_name.split("(")[0].strip()
             event_details = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
 
             if event_details and event_details[4]:
                 muc_do = event_details[4]
                 st.info(f"**Mức độ vi phạm:** Mức {muc_do}")
 
-                # Lấy lịch sử cũ
                 history = lay_lich_su_ky_luat_cua_hoc_sinh_db(student_id)
 
-                # Logic đề xuất (Giống hệt app Desktop)
                 de_xuat = ""
                 if muc_do == 1:
                     if any(h[1] == "Nhắc nhở" for h in history): de_xuat = "Phê bình"
                     else: de_xuat = "Nhắc nhở"
                 elif muc_do == 2:
-                    if any(h[1] == "Phê bình" for h in history): de_xuat = "Viết bản tự kiểm điểm"
+                    if any(h[1] == "Phê bình" for h in history): de_xuat = "Lập Kế hoạch Hỗ trợ (A4)"
                     else: de_xuat = "Phê bình"
                 elif muc_do == 3:
-                    de_xuat = "Viết bản tự kiểm điểm"
+                    de_xuat = "Lập Kế hoạch Hỗ trợ (A4)"
 
                 st.success(f"**Đề xuất xử lý:** {de_xuat}")
 
-                # Nút xem nhanh lịch sử
-                with st.expander("Xem nhanh lịch sử kỷ luật của học sinh này"):
-                    if history:
-                        for h in history[:3]: # Hiện 3 lần gần nhất
-                            st.write(f"- {h[1]} (Ngày: {h[2].strftime('%d/%m/%Y')})")
-                    else:
-                        st.write("Chưa có lịch sử kỷ luật.")
-
-                # Form xác nhận cuối cùng
                 st.markdown("---")
-                hinh_thuc_ap_dung = st.selectbox(
-                    "Xác nhận Hình thức áp dụng:", 
-                    ["Nhắc nhở", "Phê bình", "Viết bản tự kiểm điểm"], 
-                    index=["Nhắc nhở", "Phê bình", "Viết bản tự kiểm điểm"].index(de_xuat) if de_xuat else 0
-                )
-                ghi_chu = st.text_area("Ghi chú của GV:")
-
-                # Nút lưu dữ liệu
-                if st.button("💾 Lưu và Áp dụng", type="primary", width="stretch"):
-                    _, _, loai_sk, diem_sk, _ = event_details
-                    ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
-
-                    success, msg = them_su_kien_va_ky_luat_db(
-                        student_id, selected_violation, loai_sk, diem_sk, ngay_tao_str, hinh_thuc_ap_dung, ghi_chu
-                    )
+                # Thêm tùy chọn đặc biệt vào danh sách
+                hinh_thuc_options = ["Nhắc nhở", "Phê bình", "Viết bản tự kiểm điểm", "Lập Kế hoạch Hỗ trợ (A4)"]
+                hinh_thuc_ap_dung = st.selectbox("Xác nhận Hình thức áp dụng:", hinh_thuc_options, index=hinh_thuc_options.index(de_xuat) if de_xuat in hinh_thuc_options else 0, key="disc_action")
+                
+                # ==========================================
+                # NẾU CHỌN LẬP KẾ HOẠCH HỖ TRỢ -> MỞ FORM ĐIỀN A4
+                # ==========================================
+                if hinh_thuc_ap_dung == "Lập Kế hoạch Hỗ trợ (A4)":
+                    st.warning("⚠️ **Bạn đang lập Kế hoạch hỗ trợ 4 bên.** Vui lòng điền ngắn gọn, súc tích các thông tin dưới đây để in ra 1 mặt giấy A4.")
                     
-                    if success:
-                        st.toast(f"Đã lưu kỷ luật thành công!", icon="✅") # Hiện thông báo pop-up đẹp ở góc màn hình
+                    # Tự động tóm tắt lịch sử lỗi để điền sẵn vào form
+                    auto_history = ""
+                    if history:
+                        auto_history = "; ".join([f"{h[1]} ({h[2].strftime('%d/%m')})" for h in history[:3]])
                     else:
-                        st.error(f"Lỗi: {msg}")
+                        auto_history = "Chưa có kỷ luật trước đó."
+                    
+                    with st.container(border=True):
+                        i_impact = st.text_input("Tác động/Ảnh hưởng của hành vi này:", placeholder="VD: Ảnh hưởng thi đua của lớp, làm bạn bè khó chịu...")
+                        i_history = st.text_input("Những lần đã hỗ trợ/nhắc nhở trước đây:", value=auto_history)
+                        
+                        st.markdown("**Các bên cam kết (Mỗi bên ghi 2 hành động cụ thể):**")
+                        i_hs_commit = st.text_area("🧑‍🎓 Học sinh cam kết:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=80)
+                        i_ph_commit = st.text_area("👨‍👩‍👦 Gia đình cam kết hỗ trợ:", placeholder="- Việc 1: ...\n- Việc 2: ...", height=80)
+                        i_gv_commit = st.text_area("🏫 GVCN/Nhà trường cam kết hỗ trợ:", placeholder="- Việc 1: Nhắc nhở kiểm tra mỗi sáng\n- Việc 2: Động viên khi em làm tốt...", height=80)
+                        
+                        if st.button("🖨️ Lưu và Xuất File In (PDF)", type="primary", use_container_width=True):
+                            if not all([i_impact, i_hs_commit, i_ph_commit, i_gv_commit]):
+                                st.error("Vui lòng điền đầy đủ các cam kết.")
+                            else:
+                                _, _, loai_sk, diem_sk, _ = event_details
+                                ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
+                                
+                                # Lưu vào CSDL
+                                success_db, msg = them_su_kien_va_ky_luat_db(student_id, selected_violation, loai_sk, diem_sk, ngay_tao_str, hinh_thuc_ap_dung, f"Cam kết 14 ngày. Ảnh hưởng: {i_impact}")
+                                
+                                if success_db:
+                                    import tempfile
+                                    import os
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                                        filepath = tmp.name
+                                        
+                                    # Sinh file PDF
+                                    success_pdf, pdf_msg = generate_intervention_pdf(
+                                        student_name=hs_ten_ngan, class_name=user['class'], behavior=selected_violation,
+                                        impact=i_impact, history=i_history, st_commit=i_hs_commit, pa_commit=i_ph_commit, te_commit=i_gv_commit, filepath=filepath
+                                    )
+                                    
+                                    if success_pdf:
+                                        st.success("✅ Đã lưu CSDL và tạo File thành công!")
+                                        with open(filepath, "rb") as f: pdf_data = f.read()
+                                        st.download_button("📥 TẢI XUỐNG BIÊN BẢN (PDF)", data=pdf_data, file_name=f"BienBanHoTro_{hs_ten_ngan}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+                                        os.unlink(filepath)
+                                    else:
+                                        st.error(f"Lỗi tạo PDF: {pdf_msg}")
+                                else:
+                                    st.error(f"Lỗi CSDL: {msg}")
+
+                # ==========================================
+                # NẾU CHỈ KỶ LUẬT BÌNH THƯỜNG (Nhắc nhở, Phê bình)
+                # ==========================================
+                else:
+                    ghi_chu = st.text_area("Ghi chú của GV (Tùy chọn):")
+                    if st.button("💾 Lưu Kỷ luật", type="primary", use_container_width=True):
+                        _, _, loai_sk, diem_sk, _ = event_details
+                        ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
+                        success, msg = them_su_kien_va_ky_luat_db(student_id, selected_violation, loai_sk, diem_sk, ngay_tao_str, hinh_thuc_ap_dung, ghi_chu)
+                        
+                        if success: st.toast(f"Đã lưu kỷ luật thành công!", icon="✅"); st.rerun()
+                        else: st.error(f"Lỗi: {msg}")
         else:
-            st.write("👈 Vui lòng chọn học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
+            st.write("👈 Vui lòng chọn học sinh và lỗi vi phạm ở cột bên trái.")
 # --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG & BẢN ĐỒ HÀNH VI) ---
 def show_statistics_page():
     st.header("📊 Phân tích & Cảnh báo Rèn luyện")
