@@ -181,3 +181,131 @@ def generate_pdf_report(student_id, year, month, teacher_name, filepath):
         return True, "Tạo báo cáo PDF thành công."
     except Exception as e:
         return False, f"Lỗi khi lưu file PDF: {e}"
+# --- DÁN HÀM NÀY VÀO CUỐI FILE pdf_report.py ---
+
+def generate_intervention_pdf(student_name, class_name, behavior, impact, history, st_commit, pa_commit, te_commit, filepath):
+    from fpdf import FPDF
+    from datetime import datetime, timedelta
+    
+    pdf = FPDF()
+    pdf.add_page()
+    
+    try:
+        # Nạp font tiếng Việt (Giống các hàm trước)
+        pdf.add_font('VnFont', '', FONT_REGULAR_PATH, uni=True)
+        pdf.add_font('VnFont', 'B', FONT_BOLD_PATH, uni=True)
+        pdf.add_font('VnFont', 'I', FONT_ITALIC_PATH, uni=True)
+    except Exception as e:
+        return False, f"Lỗi Font: {e}"
+
+    # --- TIÊU ĐỀ ---
+    pdf.set_font('VnFont', 'B', 16)
+    pdf.cell(0, 10, 'BIÊN BẢN THỎA THUẬN & HỖ TRỢ HÀNH VI', 0, 1, 'C')
+    pdf.set_font('VnFont', 'I', 11)
+    pdf.cell(0, 6, '(Thay thế cho Bản kiểm điểm truyền thống)', 0, 1, 'C')
+    pdf.ln(5)
+
+    # --- THÔNG TIN CHUNG ---
+    pdf.set_font('VnFont', 'B', 12)
+    pdf.cell(30, 8, 'Học sinh:'); pdf.set_font('VnFont', '', 12); pdf.cell(80, 8, str(student_name).upper())
+    pdf.set_font('VnFont', 'B', 12); pdf.cell(15, 8, 'Lớp:'); pdf.set_font('VnFont', '', 12); pdf.cell(0, 8, str(class_name), 0, 1)
+    
+    pdf.set_draw_color(150, 150, 150)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(5)
+
+    # --- PHẦN 1: NHÌN NHẬN VẤN ĐỀ ---
+    pdf.set_font('VnFont', 'B', 12)
+    pdf.cell(0, 8, '1. VẤN ĐỀ ĐANG XẢY RA', 0, 1)
+    
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(40, 7, ' - Hành vi hiện tại:')
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, 7, str(behavior))
+    
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(40, 7, ' - Ảnh hưởng:')
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, 7, str(impact))
+
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(40, 7, ' - Lịch sử nhắc nhở:')
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, 7, str(history))
+    pdf.ln(3)
+
+    # --- PHẦN 2: CAM KẾT HÀNH ĐỘNG (RẤT QUAN TRỌNG) ---
+    pdf.set_font('VnFont', 'B', 12)
+    pdf.cell(0, 8, '2. KẾ HOẠCH HÀNH ĐỘNG (Trong 14 ngày tới)', 0, 1)
+    
+    # Kẻ bảng cho phần cam kết để trông trang trọng
+    line_h = 7
+    pdf.set_fill_color(240, 240, 240)
+    
+    # Học sinh
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(0, line_h, ' 🧑‍🎓 Học sinh cam kết thực hiện 2 việc sau:', 1, 1, 'L', 1)
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, line_h, str(st_commit), 1, 'L')
+    
+    # Gia đình
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(0, line_h, ' 👨‍👩‍👦 Gia đình cam kết hỗ trợ 2 việc sau:', 1, 1, 'L', 1)
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, line_h, str(pa_commit), 1, 'L')
+    
+    # Nhà trường
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(0, line_h, ' 🏫 Nhà trường / GVCN cam kết hỗ trợ 2 việc sau:', 1, 1, 'L', 1)
+    pdf.set_font('VnFont', '', 11)
+    pdf.multi_cell(0, line_h, str(te_commit), 1, 'L')
+    pdf.ln(5)
+
+    # --- PHẦN 3: THỜI GIAN ĐÁNH GIÁ ---
+    today = datetime.now()
+    review_date = today + timedelta(days=14)
+    
+    pdf.set_font('VnFont', 'B', 12)
+    pdf.cell(0, 8, '3. THỜI GIAN THỬ THÁCH VÀ ĐÁNH GIÁ', 0, 1)
+    
+    pdf.set_font('VnFont', '', 11)
+    pdf.cell(50, 7, ' - Thời gian thử thách:')
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(0, 7, '14 ngày (Kể từ ngày ký biên bản này)', 0, 1)
+    
+    pdf.set_font('VnFont', '', 11)
+    pdf.cell(50, 7, ' - Ngày đánh giá lại:')
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.cell(0, 7, review_date.strftime('%d/%m/%Y'), 0, 1)
+    
+    pdf.set_font('VnFont', 'I', 10)
+    pdf.multi_cell(0, 6, '* Đúng ngày hẹn trên, 4 bên sẽ ngồi lại. Nếu học sinh hoàn thành cam kết, biên bản này sẽ được hủy bỏ và ghi nhận sự tiến bộ. Nếu không, nhà trường sẽ áp dụng biện pháp kỷ luật cao hơn.')
+    pdf.ln(10)
+
+    # --- PHẦN CHỮ KÝ 4 BÊN ---
+    pdf.set_font('VnFont', 'B', 11)
+    y_sig = pdf.get_y()
+    
+    # Hàng 1
+    pdf.set_y(y_sig); pdf.set_x(10); pdf.cell(90, 6, 'HỌC SINH', 0, 0, 'C')
+    pdf.set_y(y_sig); pdf.set_x(100); pdf.cell(100, 6, 'GIA ĐÌNH HỌC SINH', 0, 1, 'C')
+    pdf.set_font('VnFont', 'I', 10)
+    pdf.set_y(y_sig+6); pdf.set_x(10); pdf.cell(90, 6, '(Ký, ghi rõ họ tên)', 0, 0, 'C')
+    pdf.set_y(y_sig+6); pdf.set_x(100); pdf.cell(100, 6, '(Ký, ghi rõ họ tên)', 0, 1, 'C')
+    
+    pdf.ln(25) # Khoảng trống ký tên
+    
+    # Hàng 2
+    y_sig_2 = pdf.get_y()
+    pdf.set_font('VnFont', 'B', 11)
+    pdf.set_y(y_sig_2); pdf.set_x(10); pdf.cell(90, 6, 'GIÁO VIÊN CHỦ NHIỆM', 0, 0, 'C')
+    pdf.set_y(y_sig_2); pdf.set_x(100); pdf.cell(100, 6, 'ĐẠI DIỆN NHÀ TRƯỜNG', 0, 1, 'C')
+    pdf.set_font('VnFont', 'I', 10)
+    pdf.set_y(y_sig_2+6); pdf.set_x(10); pdf.cell(90, 6, '(Ký, ghi rõ họ tên)', 0, 0, 'C')
+    pdf.set_y(y_sig_2+6); pdf.set_x(100); pdf.cell(100, 6, '(Ký, ghi rõ họ tên)', 0, 1, 'C')
+
+    try:
+        pdf.output(filepath)
+        return True, "Tạo PDF thành công."
+    except Exception as e:
+        return False, f"Lỗi lưu PDF: {e}"
