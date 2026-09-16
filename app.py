@@ -1901,9 +1901,10 @@ def show_main_dashboard():
             options.append("Tổng kết & Xuất Báo cáo")
             icons.append("file-earmark-spreadsheet")
 
+        # <<< ĐÃ THÊM HÒM THƯ LẮNG NGHE VÀ ICON VÀO ĐÂY >>>
         if role in ['gvcn', 'admin']:
-            options.extend(["Ghi nhận Kỷ luật (TT19)", "Thống kê & Báo cáo"])
-            icons.extend(["shield-exclamation", "bar-chart-steps"])
+            options.extend(["Ghi nhận Kỷ luật (TT19)", "Thống kê & Báo cáo", "Hòm thư Lắng nghe"])
+            icons.extend(["shield-exclamation", "bar-chart-steps", "envelope-paper"])
             
         if role == 'admin':
             options.append("Quản trị Hệ thống")
