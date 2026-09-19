@@ -2314,7 +2314,7 @@ def show_leaderboard_page():
                 cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
     else:
         st.success(f"✨ Thật tuyệt vời! 100% học sinh đều có điểm cộng tích cực trong tuần {selected_week}!")
-# --- HÀM 10: SIÊU THỊ ĐỔI THƯỞNG & VÒNG QUAY MAY MẮN ---
+# --- HÀM 10: SIÊU THỊ ĐỔI THƯỞNG & VÒNG QUAY MAY MẮN (LUÔN HIỂN THỊ) ---
 def show_reward_store_page():
     st.header("🎁 Siêu thị & Vòng quay May mắn")
     st.markdown("---")
@@ -2322,6 +2322,9 @@ def show_reward_store_page():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
 
+    # ==========================================
+    # DANH MỤC HÀNG HÓA VÀ QUÀ TẶNG
+    # ==========================================
     SUPERMARKET = {
         "🟢 Khu Vực Phổ Thông": [
             {"name": "Được quyền chọn bài hát giờ ra chơi", "cost": 15, "icon": "🎵", "color": "#e8f5e9"},
@@ -2340,11 +2343,21 @@ def show_reward_store_page():
         ]
     }
 
-    # <<< THÊM 1 TAB MỚI: VÒNG QUAY MAY MẮN >>>
+    VONG_QUAY_PRIZES = [
+        {"name": "Trúng lớn: +30 Xu 🪙", "type": "xu", "value": 30, "color": "#27ae60"},
+        {"name": "Thẻ Miễn Trực Nhật 🧹", "type": "qua", "value": "Thẻ Miễn Trực Nhật", "color": "#2980b9"},
+        {"name": "Cộng 5 Điểm Rèn luyện 📈", "type": "diem", "value": 5, "color": "#8e44ad"},
+        {"name": "Mất lượt (Hụt rồi!) 😭", "type": "qua", "value": "Mất lượt", "color": "#7f8c8d"},
+        {"name": "Phạt: Trừ 5 Xu 📉", "type": "xu", "value": -5, "color": "#c0392b"},
+        {"name": "Thẻ Đổi Chỗ Ngồi 🪑", "type": "qua", "value": "Thẻ Đổi Chỗ Ngồi", "color": "#d35400"},
+        {"name": "Hoàn lại 10 Xu (Hòa vốn) 🪙", "type": "xu", "value": 10, "color": "#16a085"},
+        {"name": "Một tràng pháo tay 👏", "type": "qua", "value": "Pháo tay", "color": "#f39c12"}
+    ]
+
     tab_doiqua, tab_vongquay, tab_phatxu = st.tabs(["🛒 Siêu thị Mua sắm", "🎡 Vòng quay May mắn", "💰 Phát Xu Thưởng (Cho GVCN)"])
 
     # ==========================================
-    # TAB 1: MUA SẮM (GIỮ NGUYÊN NHƯ CŨ)
+    # TAB 1: MUA SẮM (HIỂN THỊ HÀNG HÓA TRƯỚC)
     # ==========================================
     with tab_doiqua:
         raw_students = get_cached_students(role, aclass, agroup)
@@ -2353,7 +2366,13 @@ def show_reward_store_page():
         
         col_chon_hs, col_so_du = st.columns([2, 1])
         with col_chon_hs:
-            selected_student = st.selectbox("Tên khách hàng:", ["-- Chọn --"] + list(student_dict.keys()), label_visibility="collapsed", key="sb_store")
+            st.subheader("1. Ai là người mua hàng?")
+            selected_student = st.selectbox("Chọn học sinh:", ["-- Chọn --"] + list(student_dict.keys()), label_visibility="collapsed", key="sb_store_v2")
+
+        # Khởi tạo các biến an toàn
+        hs_id = None
+        so_du_hien_tai = 0
+        hs_ten_ngan = ""
 
         if selected_student != "-- Chọn --":
             hs_id = student_dict[selected_student]
@@ -2362,17 +2381,27 @@ def show_reward_store_page():
 
             with col_so_du:
                 st.markdown(f"<div style='text-align: center; padding: 10px; background-color: #fff; border-radius: 10px; border: 2px solid #f1c40f; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -10px;'><p style='margin: 0; color: #555; font-size: 14px;'>Ví của {hs_ten_ngan}</p><h2 style='margin: 0; color: #f39c12;'>🪙 {so_du_hien_tai} Xu</h2></div>", unsafe_allow_html=True)
+        else:
+            with col_so_du:
+                st.markdown(f"<div style='text-align: center; padding: 10px; background-color: #f8f9fa; border-radius: 10px; border: 2px dashed #bdc3c7; margin-top: -10px;'><p style='margin: 0; color: gray; font-size: 14px;'>Ví của ai?</p><h2 style='margin: 0; color: #bdc3c7;'>🪙 0 Xu</h2></div>", unsafe_allow_html=True)
             
-            st.markdown("---")
-            st.subheader("Gian hàng Quà tặng")
-            for category_name, items in SUPERMARKET.items():
-                st.markdown(f"#### {category_name}")
-                cols = st.columns(3)
-                for i, item in enumerate(items):
-                    with cols[i % 3]:
-                        st.markdown(f"<div style='background-color: {item['color']}; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #ddd; height: 180px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px;'><h1 style='margin:0; font-size: 40px;'>{item['icon']}</h1><p style='margin:10px 0; color: #333; font-weight: bold; font-size: 15px; line-height: 1.2;'>{item['name']}</p><h4 style='color: #d35400; margin:0;'>🪙 {item['cost']}</h4></div>", unsafe_allow_html=True)
+        st.markdown("---")
+        st.subheader("2. Gian hàng Quà tặng")
+        
+        # LUÔN LUÔN VẼ GIAN HÀNG BẤT KỂ ĐÃ CHỌN HỌC SINH HAY CHƯA
+        for category_name, items in SUPERMARKET.items():
+            st.markdown(f"#### {category_name}")
+            cols = st.columns(3)
+            for i, item in enumerate(items):
+                with cols[i % 3]:
+                    st.markdown(f"<div style='background-color: {item['color']}; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #ddd; height: 180px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px;'><h1 style='margin:0; font-size: 40px;'>{item['icon']}</h1><p style='margin:10px 0; color: #333; font-weight: bold; font-size: 15px; line-height: 1.2;'>{item['name']}</p><h4 style='color: #d35400; margin:0;'>🪙 {item['cost']}</h4></div>", unsafe_allow_html=True)
+                    
+                    # Logic kiểm tra nút bấm
+                    if selected_student == "-- Chọn --":
+                        st.button(f"🔒 Chọn HS để mua", disabled=True, key=f"btn_lock_none_{item['name']}", use_container_width=True)
+                    else:
                         if so_du_hien_tai >= item['cost']:
-                            if st.button(f"🛒 Mua ngay", key=f"btn_buy_{hs_id}_{item['name']}", type="primary", use_container_width=True):
+                            if st.button(f"🛒 Mua ngay ({item['cost']} Xu)", key=f"btn_buy_{hs_id}_{item['name']}", type="primary", use_container_width=True):
                                 cap_nhat_xu_thuong_db(hs_id, -item['cost'])
                                 them_su_kien_ren_luyen_db(hs_id, f"🛍️ Đã mua: {item['name']} (-{item['cost']} Xu)", "Khen thưởng", 0, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                                 st.success(f"🎉 Thành công! {hs_ten_ngan} đã mua: {item['name']}!")
@@ -2380,83 +2409,73 @@ def show_reward_store_page():
                                 st.rerun()
                         else:
                             st.button(f"🔒 Cần thêm {item['cost'] - so_du_hien_tai} Xu", disabled=True, key=f"btn_lock_{hs_id}_{item['name']}", use_container_width=True)
+            
+            st.write("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # TAB 2: VÒNG QUAY MAY MẮN (TÍNH NĂNG MỚI)
+    # TAB 2: VÒNG QUAY MAY MẮN (HIỂN THỊ VÒNG QUAY TRƯỚC)
     # ==========================================
     with tab_vongquay:
         st.write("💡 **Luật chơi:** Mỗi lần quay tiêu tốn **10 Xu**. Chúc các em may mắn!")
         
         col_vq_hs, col_vq_info = st.columns([2, 1])
         with col_vq_hs:
-            selected_student_vq = st.selectbox("Chọn người chơi:", ["-- Chọn --"] + list(student_dict.keys()), key="sb_vq")
+            selected_student_vq = st.selectbox("Ai sẽ thử vận may?", ["-- Chọn --"] + list(student_dict.keys()), key="sb_vq_v2")
             
+        so_du_vq = 0
         if selected_student_vq != "-- Chọn --":
             hs_id_vq = student_dict[selected_student_vq]
             so_du_vq = lay_so_du_xu_db(hs_id_vq)
             hs_ten_ngan_vq = selected_student_vq.split("(")[0].strip()
-            
             with col_vq_info:
-                st.markdown(f"<div style='text-align:center; padding:10px; border-radius:10px; background:#fff; border:2px dashed #f39c12; margin-top:28px;'><h4 style='margin:0; color:#e67e22;'>Ví: 🪙 {so_du_vq} Xu</h4></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; padding:10px; border-radius:10px; background:#fff; border:2px solid #f39c12; margin-top:28px;'><h4 style='margin:0; color:#e67e22;'>Ví: 🪙 {so_du_vq} Xu</h4></div>", unsafe_allow_html=True)
+        else:
+            with col_vq_info:
+                st.markdown(f"<div style='text-align:center; padding:10px; border-radius:10px; background:#f8f9fa; border:2px dashed #bdc3c7; margin-top:28px;'><h4 style='margin:0; color:gray;'>Ví: 🪙 0 Xu</h4></div>", unsafe_allow_html=True)
                 
-            # Thiết lập các ô trong vòng quay (Tên, Loại, Giá trị, Màu sắc)
-            VONG_QUAY_PRIZES = [
-                {"name": "Trúng lớn: +30 Xu 🪙", "type": "xu", "value": 30, "color": "#27ae60"},
-                {"name": "Thẻ Miễn Trực Nhật 🧹", "type": "qua", "value": "Thẻ Miễn Trực Nhật", "color": "#2980b9"},
-                {"name": "Cộng 5 Điểm Rèn luyện 📈", "type": "diem", "value": 5, "color": "#8e44ad"},
-                {"name": "Mất lượt (Hụt rồi!) 😭", "type": "qua", "value": "Mất lượt", "color": "#7f8c8d"},
-                {"name": "Phạt: Trừ 5 Xu 📉", "type": "xu", "value": -5, "color": "#c0392b"},
-                {"name": "Thẻ Đổi Chỗ Ngồi 🪑", "type": "qua", "value": "Thẻ Đổi Chỗ Ngồi", "color": "#d35400"},
-                {"name": "Hoàn lại 10 Xu (Hòa vốn) 🪙", "type": "xu", "value": 10, "color": "#16a085"},
-                {"name": "Một tràng pháo tay 👏", "type": "qua", "value": "Pháo tay", "color": "#f39c12"}
-            ]
+        st.write("---")
+        
+        # LUÔN LUÔN VẼ VÒNG QUAY RA MÀN HÌNH
+        spin_placeholder = st.empty()
+        spin_placeholder.markdown("<div style='height:160px; display:flex; justify-content:center; align-items:center; background:#f4f6f9; border-radius:15px; border:3px dashed #bdc3c7;'><h2 style='color:#7f8fa6;'>🎰 Sẵn sàng quay!</h2></div>", unsafe_allow_html=True)
+        
+        st.write("")
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+        with col_btn2:
+            import random
+            import time
             
-            st.write("---")
-            
-            # Khung hiển thị vòng quay
-            spin_placeholder = st.empty()
-            spin_placeholder.markdown("<div style='height:160px; display:flex; justify-content:center; align-items:center; background:#f4f6f9; border-radius:15px; border:3px dashed #bdc3c7;'><h2 style='color:#7f8fa6;'>Sẵn sàng quay!</h2></div>", unsafe_allow_html=True)
-            
-            st.write("")
-            col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-            with col_btn2:
-                if so_du_vq >= 10:
-                    if st.button("🎰 QUAY NGAY (-10 Xu)", type="primary", use_container_width=True):
-                        # 1. Trừ tiền vé ngay lập tức
-                        cap_nhat_xu_thuong_db(hs_id_vq, -10)
+            # Logic nút quay
+            if selected_student_vq == "-- Chọn --":
+                st.button("🔒 Vui lòng chọn học sinh trước", disabled=True, use_container_width=True, key="btn_vq_lock_none")
+            elif so_du_vq < 10:
+                st.button("🔒 Không đủ 10 Xu để quay", disabled=True, use_container_width=True, key="btn_vq_lock_money")
+            else:
+                if st.button("🎰 QUAY NGAY (-10 Xu)", type="primary", use_container_width=True, key="btn_vq_spin"):
+                    cap_nhat_xu_thuong_db(hs_id_vq, -10)
+                    win_prize = random.choice(VONG_QUAY_PRIZES)
+                    
+                    for i in range(25):
+                        temp_prize = random.choice(VONG_QUAY_PRIZES)
+                        spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{temp_prize['color']}; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'><h2 style='color:white; margin:0;'>{temp_prize['name']}</h2></div>", unsafe_allow_html=True)
+                        time.sleep(0.04 + (i * 0.008)) 
                         
-                        # 2. Quay ngẫu nhiên chốt kết quả
-                        win_prize = random.choice(VONG_QUAY_PRIZES)
+                    spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{win_prize['color']}; border-radius:15px; border: 6px solid #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.6);'><h1 style='color:white; margin:0;'>{win_prize['name']}</h1></div>", unsafe_allow_html=True)
+                    
+                    ngay_quay = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    if win_prize['type'] == 'xu':
+                        cap_nhat_xu_thuong_db(hs_id_vq, win_prize['value'])
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng" if win_prize['value'] > 0 else "Vi phạm", 0, ngay_quay)
+                    elif win_prize['type'] == 'diem':
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng", win_prize['value'], ngay_quay)
+                    else:
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng", 0, ngay_quay)
                         
-                        # 3. Tạo hiệu ứng giật chớp (Roulette Effect) chậm dần
-                        for i in range(25):
-                            temp_prize = random.choice(VONG_QUAY_PRIZES)
-                            spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{temp_prize['color']}; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'><h2 style='color:white; margin:0;'>{temp_prize['name']}</h2></div>", unsafe_allow_html=True)
-                            time.sleep(0.04 + (i * 0.008)) # Tốc độ chậm dần tạo hồi hộp
-                            
-                        # 4. Hiển thị kết quả cuối cùng rực rỡ
-                        spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{win_prize['color']}; border-radius:15px; border: 6px solid #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.6);'><h1 style='color:white; margin:0;'>{win_prize['name']}</h1></div>", unsafe_allow_html=True)
+                    if win_prize['value'] not in ["Mất lượt", -5]: st.balloons()
+                    else: st.toast("Ôi tiếc quá!", icon="😢")
                         
-                        # 5. Ghi nhận phần thưởng vào CSDL
-                        ngay_quay = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        if win_prize['type'] == 'xu':
-                            cap_nhat_xu_thuong_db(hs_id_vq, win_prize['value'])
-                            them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng" if win_prize['value'] > 0 else "Vi phạm", 0, ngay_quay)
-                        elif win_prize['type'] == 'diem':
-                            them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng", win_prize['value'], ngay_quay)
-                        else:
-                            them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng", 0, ngay_quay)
-                            
-                        # Hiệu ứng nổ bóng bay nếu trúng quà xịn
-                        if win_prize['value'] not in ["Mất lượt", -5]: st.balloons()
-                        else: st.toast("Ôi tiếc quá!", icon="😢")
-                            
-                        st.success(f"🎉 Xin chúc mừng! {hs_ten_ngan_vq} đã quay trúng: **{win_prize['name']}**")
-                        
-                        # Nút để F5 làm mới lại ví tiền
-                        if st.button("🔄 Tải lại số dư mới", use_container_width=True): st.rerun()
-                else:
-                    st.button("🔒 Không đủ 10 Xu để quay", disabled=True, use_container_width=True)
+                    st.success(f"🎉 Xin chúc mừng! {hs_ten_ngan_vq} đã quay trúng: **{win_prize['name']}**")
+                    if st.button("🔄 Tải lại số dư mới", use_container_width=True): st.rerun()
 
     # ==========================================
     # TAB 3: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
