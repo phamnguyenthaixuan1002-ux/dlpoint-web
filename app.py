@@ -2770,8 +2770,6 @@ def show_seating_chart_page():
         master_html += col_html
     master_html += "</div></div>"
 
-    # In Sơ đồ ra trang Web hiện tại
-    st.markdown(master_html, unsafe_allow_html=True)
     
     st.markdown(master_html, unsafe_allow_html=True)
 # --- HÀM 12: HỘP THƯ ĐẾN CỦA GVCN ---
