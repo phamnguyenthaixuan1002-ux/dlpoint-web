@@ -12,6 +12,8 @@ import io # <<< THÊM THƯ VIỆN NÀY (Để xử lý file Excel mẫu tải v�
 import base64 # <<< THÊM THƯ VIỆN NÀY ĐỂ XỬ LÝ ẢNH TRÊN WEB
 import zipfile  # <<< THÊM DÒNG NÀY
 import streamlit.components.v1 as components # Thư viện để nhúng mã PWA
+import random
+import time
 from database import (
     init_db, verify_user, lay_danh_sach_hoc_sinh_db,
     lay_tat_ca_danh_muc_su_kien_db, lay_chi_tiet_danh_muc_su_kien_db,
