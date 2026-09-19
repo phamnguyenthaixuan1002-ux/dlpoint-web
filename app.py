@@ -2412,8 +2412,8 @@ def show_reward_store_page():
             
             st.write("<br>", unsafe_allow_html=True)
 
-    # ==========================================
-    # TAB 2: VÒNG QUAY MAY MẮN (HIỂN THỊ VÒNG QUAY TRƯỚC)
+# ==========================================
+    # TAB 2: VÒNG QUAY MAY MẮN (HIỂN THỊ RÕ 8 Ô GIẢI THƯỞNG)
     # ==========================================
     with tab_vongquay:
         st.write("💡 **Luật chơi:** Mỗi lần quay tiêu tốn **10 Xu**. Chúc các em may mắn!")
@@ -2433,9 +2433,25 @@ def show_reward_store_page():
             with col_vq_info:
                 st.markdown(f"<div style='text-align:center; padding:10px; border-radius:10px; background:#f8f9fa; border:2px dashed #bdc3c7; margin-top:28px;'><h4 style='margin:0; color:gray;'>Ví: 🪙 0 Xu</h4></div>", unsafe_allow_html=True)
                 
-        st.write("---")
+        st.markdown("---")
         
-        # LUÔN LUÔN VẼ VÒNG QUAY RA MÀN HÌNH
+        # <<< TÍNH NĂNG MỚI: HIỂN THỊ CÁC Ô TRONG VÒNG QUAY >>>
+        st.markdown("#### 🎯 Cơ cấu giải thưởng Vòng quay")
+        
+        # Chia 4 cột để xếp 8 ô thưởng thành 2 hàng ngay ngắn
+        cols_prize = st.columns(4)
+        for i, prize in enumerate(VONG_QUAY_PRIZES):
+            with cols_prize[i % 4]:
+                # Vẽ thẻ giải thưởng viền màu theo từng loại
+                st.markdown(f"""
+                <div style='background-color: white; border: 2px solid {prize['color']}; padding: 8px; border-radius: 10px; text-align: center; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); height: 65px; display: flex; align-items: center; justify-content: center;'>
+                    <span style='color: {prize['color']}; font-weight: 800; font-size: 12.5px; line-height: 1.2;'>{prize['name']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # VẼ MÀN HÌNH QUAY CHÍNH Ở GIỮA
         spin_placeholder = st.empty()
         spin_placeholder.markdown("<div style='height:160px; display:flex; justify-content:center; align-items:center; background:#f4f6f9; border-radius:15px; border:3px dashed #bdc3c7;'><h2 style='color:#7f8fa6;'>🎰 Sẵn sàng quay!</h2></div>", unsafe_allow_html=True)
         
@@ -2452,16 +2468,20 @@ def show_reward_store_page():
                 st.button("🔒 Không đủ 10 Xu để quay", disabled=True, use_container_width=True, key="btn_vq_lock_money")
             else:
                 if st.button("🎰 QUAY NGAY (-10 Xu)", type="primary", use_container_width=True, key="btn_vq_spin"):
+                    # Trừ tiền
                     cap_nhat_xu_thuong_db(hs_id_vq, -10)
                     win_prize = random.choice(VONG_QUAY_PRIZES)
                     
+                    # Hiệu ứng quay
                     for i in range(25):
                         temp_prize = random.choice(VONG_QUAY_PRIZES)
                         spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{temp_prize['color']}; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'><h2 style='color:white; margin:0;'>{temp_prize['name']}</h2></div>", unsafe_allow_html=True)
                         time.sleep(0.04 + (i * 0.008)) 
                         
+                    # Hiện kết quả
                     spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{win_prize['color']}; border-radius:15px; border: 6px solid #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.6);'><h1 style='color:white; margin:0;'>{win_prize['name']}</h1></div>", unsafe_allow_html=True)
                     
+                    # Lưu DB
                     ngay_quay = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     if win_prize['type'] == 'xu':
                         cap_nhat_xu_thuong_db(hs_id_vq, win_prize['value'])
@@ -2471,6 +2491,7 @@ def show_reward_store_page():
                     else:
                         them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Quay số trúng: {win_prize['name']}", "Khen thưởng", 0, ngay_quay)
                         
+                    # Hiệu ứng
                     if win_prize['value'] not in ["Mất lượt", -5]: st.balloons()
                     else: st.toast("Ôi tiếc quá!", icon="😢")
                         
