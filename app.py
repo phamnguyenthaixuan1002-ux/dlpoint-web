@@ -2699,7 +2699,6 @@ def show_seating_chart_page():
             with open(os.path.join('student_photos', path), "rb") as f: return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
         return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
-    # Hàm tạo HTML cho 1 ghế ngồi (Đã tích hợp tính năng Phóng to ảnh khi Bấm)
     def create_seat_html(hs_id):
         if not hs_id: return "<div style='width:48%; background:#f8f9fa; border:2px dashed #dfe6e9; border-radius:8px; text-align:center; color:#b2bec3; height:110px; display:flex; align-items:center; justify-content:center; box-sizing:border-box;'>Trống</div>"
         
@@ -2711,48 +2710,17 @@ def show_seating_chart_page():
         accent_color = "#27ae60" if hs_info['diem'] >= 115 else "#bdc3c7" if hs_info['diem'] >= 80 else "#e74c3c"
         icon = "🗣️" if hs_info['mat_trat_tu'] > 0 else ""
         
-        return f"""
-        <div style='width:48%; background:{bg_color}; border:1px solid #eee; border-bottom:4px solid {accent_color}; border-radius:8px; padding:6px 4px; text-align:center; height:110px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05); box-sizing:border-box;'>
-            <!-- Nút bấm ẩn chứa ảnh nhỏ -->
-            <label for="zoom_{hs_id}" style="cursor: zoom-in; margin-bottom:4px; display:block;">
-                <img src='{img_b64}' style='width:45px; height:45px; object-fit:cover; border-radius:50%; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,0.1);'>
-            </label>
-            
-            <!-- Checkbox tàng hình để điều khiển phóng to -->
-            <input type="checkbox" id="zoom_{hs_id}" class="zoom-cb" style="display:none;">
-            
-            <!-- Khung ảnh lớn (Sẽ hiện ra khi bấm ảnh nhỏ) -->
-            <label for="zoom_{hs_id}" class="zoom-overlay">
-                <img src='{img_b64}' class="zoom-img">
-                <div style="color:white; font-size: 24px; font-weight: bold; margin-top: 15px;">{hs_info['ten_goc']}</div>
-                <div style="color:#f1c40f; font-size: 18px; margin-top: 5px;">Điểm rèn luyện: {hs_info['diem']}</div>
-                <div style="color:#aaa; font-size: 14px; margin-top: 10px;">(Chạm vào bất kỳ đâu để đóng)</div>
-            </label>
-
-            <!-- Tên và Điểm (Không thay đổi) -->
-            <div style='font-size:11px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div>
-            <div style='font-size:10px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:6px; margin-top:3px;'>{hs_info['diem']} {icon}</div>
-        </div>
-        """
+        # BỌC MỌI THỨ VÀO 1 DÒNG DUY NHẤT ĐỂ CHỐNG LỖI HIỂN THỊ CHỮ LẰNG NHẰNG
+        return f"<div style='width:48%; background:{bg_color}; border:1px solid #eee; border-bottom:4px solid {accent_color}; border-radius:8px; padding:6px 4px; text-align:center; height:110px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05); box-sizing:border-box;'><label for='zoom_{hs_id}' style='cursor:zoom-in; margin-bottom:4px; display:block;'><img src='{img_b64}' style='width:45px; height:45px; object-fit:cover; border-radius:50%; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,0.1);'></label><input type='checkbox' id='zoom_{hs_id}' class='zoom-cb' style='display:none;'><label for='zoom_{hs_id}' class='zoom-overlay'><img src='{img_b64}' class='zoom-img'><div style='color:white; font-size:24px; font-weight:bold; margin-top:15px;'>{hs_info['ten_goc']}</div><div style='color:#f1c40f; font-size:18px; margin-top:5px;'>Điểm rèn luyện: {hs_info['diem']}</div><div style='color:#aaa; font-size:14px; margin-top:10px;'>(Chạm vào bất kỳ đâu để đóng)</div></label><div style='font-size:11px; font-weight:bold; color:#2d3436; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;' title='{hs_info['ten_goc']}'>{hs_info['ten_ngan']}</div><div style='font-size:10px; color:#636e72; font-weight:600; background:#f1f2f6; padding:2px 6px; border-radius:6px; margin-top:3px;'>{hs_info['diem']} {icon}</div></div>"
 
     to_names_sorted = sorted(list(set([hs['to'] for hs in hs_data])))
 
-    # BỌC TOÀN BỘ SƠ ĐỒ VÀ THÊM CSS CHO HIỆU ỨNG PHÓNG TO ẢNH (LIGHTBOX)
-    master_html = """
-    <style>
-        /* CSS làm hiệu ứng phóng to ảnh */
-        .zoom-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.85); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; cursor: zoom-out; backdrop-filter: blur(5px); }
-        .zoom-cb:checked + .zoom-overlay { display: flex !important; }
-        .zoom-img { max-width: 90vw; max-height: 60vh; object-fit: contain; border-radius: 15px; border: 4px solid white; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        /* Không in cái ảnh to ra giấy nếu đang bật */
-        @media print { .zoom-overlay, .zoom-cb { display: none !important; } } 
-    </style>
-    """
+    # ÉP CSS VÀO 1 DÒNG DUY NHẤT
+    master_html = "<style>.zoom-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.85); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; cursor: zoom-out; backdrop-filter: blur(5px); } .zoom-cb:checked + .zoom-overlay { display: flex !important; } .zoom-img { max-width: 90vw; max-height: 60vh; object-fit: contain; border-radius: 15px; border: 4px solid white; box-shadow: 0 0 20px rgba(0,0,0,0.5); } @media print { .zoom-overlay, .zoom-cb { display: none !important; } }</style>"
     
     master_html += f"<div id='vung-in-so-do' style='width: 100%; font-family: Arial, sans-serif; background: white; padding: 10px; border-radius: 10px;'>"
     master_html += f"<h2 style='text-align: center; color: #2c3e50; letter-spacing: 2px; margin-top: 10px; margin-bottom: 5px;'>BẢNG ĐEN / LỚP {aclass}</h2>"
     master_html += "<div style='height: 6px; background: linear-gradient(90deg, #bdc3c7 0%, #2c3e50 50%, #bdc3c7 100%); border-radius: 3px; margin-bottom: 25px;'></div>"
-    
     master_html += f"<div style='display: grid; grid-template-columns: repeat({so_day}, 1fr); gap: 12px;'>"
     
     for c in range(1, so_day + 1):
@@ -2770,7 +2738,7 @@ def show_seating_chart_page():
         master_html += col_html
     master_html += "</div></div>"
 
-    
+    # In Sơ đồ ra trang Web hiện tại
     st.markdown(master_html, unsafe_allow_html=True)
 # --- HÀM 12: HỘP THƯ ĐẾN CỦA GVCN ---
 def show_inbox_page():
