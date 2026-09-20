@@ -470,7 +470,7 @@ def show_class_management():
                             st.write(f"**💬 Nhận xét:** {ph if ph else 'Không có'}")
                 else:
                     st.info("Chưa có lịch sử nhận xét nào được lưu.")
-# --- HÀM 8: GHI NHẬN NHANH (BẢN HỢP NHẤT - ĐÃ SỬA LỖI CHO TÀI KHOẢN ADMIN) ---
+# --- HÀM 8: GHI NHẬN NHANH (BẢN TỐI ƯU HIỂN THỊ SONG SONG) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -478,41 +478,37 @@ def show_quick_record_page():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
     
-    # --- XỬ LÝ RIÊNG CHO TÀI KHOẢN ADMIN: BẮT BUỘC CHỌN LỚP TRƯỚC ---
     if role == 'admin':
         classes, _ = get_distinct_classes_and_groups_db()
         if not classes:
             st.warning("Hệ thống chưa có dữ liệu lớp học.")
             return
-            
         selected_class = st.selectbox("Lọc danh sách theo lớp (Dành cho Admin):", ["-- Chọn Lớp --"] + classes, key="admin_class_filter")
-        
         if selected_class == "-- Chọn Lớp --":
             st.info("👈 Thầy/Cô vui lòng chọn một lớp để hiển thị danh sách học sinh cần ghi nhận.")
             return
-        
-        # Cập nhật lại biến aclass thành lớp Admin vừa chọn để tải dữ liệu
         aclass = selected_class
 
     elif role == 'bcs':
         st.info(f"🔒 **Chế độ Tổ trưởng:** Ghi nhận cho các thành viên **Tổ {agroup} - Lớp {aclass}**.")
     
-    # 1. Tải dữ liệu học sinh của lớp đã xác định
     raw_students = get_cached_students(role, aclass, agroup)
     if not raw_students:
         st.warning(f"Lớp {aclass} hiện chưa có học sinh nào.")
         return
 
-    # Chuẩn bị dữ liệu Sự kiện
+    # TÁCH LÀM 2 DANH SÁCH RIÊNG BIỆT (VI PHẠM & KHEN THƯỞNG)
     all_events = get_cached_events()
-    event_list_for_table = [] 
+    vp_list_for_table = []
+    kt_list_for_table = []
+    
     for ev in all_events:
         ten, loai, diem = ev[1], ev[2], ev[3]
-        diem_str = f"+{diem}" if diem > 0 else f"{diem}"
-        icon = "🟢" if loai == "Khen thưởng" else "🔴"
-        event_list_for_table.append({"Số lần": 0, "Loại": icon, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
+        if loai == "Vi phạm":
+            vp_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
+        else:
+            kt_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
 
-    # Cấu hình Ngày
     event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_unified")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
@@ -520,9 +516,10 @@ def show_quick_record_page():
     if 'reset_table_key' not in st.session_state:
         st.session_state.reset_table_key = 0
 
-    st.info("💡 **Cách dùng siêu nhanh:** (1) Tick chọn một hoặc nhiều Học sinh bên trái. (2) Tăng 'Số lần' ở một hoặc nhiều Sự kiện bên phải. (3) Bấm Ghi nhận.")
+    st.info("💡 **Cách dùng:** (1) Tick chọn Học sinh bên trái. (2) Tăng 'Số lần' ở các Lỗi/Khen bên phải. (3) Bấm Ghi nhận.")
 
-    col_hs, col_ev = st.columns([1, 1.2], gap="large")
+    # Mở rộng tỷ lệ cột bên phải để chứa được 2 bảng song song (Tỷ lệ 1 : 1.8)
+    col_hs, col_ev = st.columns([1, 1.8], gap="large")
 
     # ==========================================
     # CỘT TRÁI: CHỌN HỌC SINH (BẢNG CHECKBOX)
@@ -553,39 +550,59 @@ def show_quick_record_page():
         ids_to_apply = selected_rows_hs["ID"].tolist()
 
     # ==========================================
-    # CỘT PHẢI: CHỌN SỰ KIỆN & SỐ LẦN
+    # CỘT PHẢI: CHIA SONG SONG VI PHẠM & KHEN THƯỞNG
     # ==========================================
     with col_ev:
         st.write("📋 **2. Bấm (+) điền số lần Sự kiện:**")
-        df_ev = pd.DataFrame(event_list_for_table)
         
-        key_ev = f"editor_ev_unified_{st.session_state.reset_table_key}"
+        # Chia cột con bên trong cột phải
+        col_vp, col_kt = st.columns(2, gap="medium")
         
-        edited_ev_df = st.data_editor(
-            df_ev,
-            hide_index=True,
-            column_config={
-                "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d"),
-                "Loại": st.column_config.TextColumn(disabled=True, width="small"),
-                "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
-                "Điểm gốc": None, 
-                "Loại gốc": None  
-            },
-            disabled=["Loại", "Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
-            use_container_width=True, height=500, key=key_ev
-        )
+        key_vp = f"editor_vp_{st.session_state.reset_table_key}"
+        key_kt = f"editor_kt_{st.session_state.reset_table_key}"
         
-        selected_rows_ev = edited_ev_df[edited_ev_df["Số lần"] > 0]
+        with col_vp:
+            st.markdown("<div style='color: #c0392b; font-weight: bold; margin-bottom: 5px;'>🔴 LỖI VI PHẠM</div>", unsafe_allow_html=True)
+            df_vp = pd.DataFrame(vp_list_for_table)
+            edited_vp_df = st.data_editor(
+                df_vp, hide_index=True,
+                column_config={
+                    "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
+                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                    "Điểm gốc": None, "Loại gốc": None  
+                },
+                disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
+                use_container_width=True, height=450, key=key_vp
+            )
+            
+        with col_kt:
+            st.markdown("<div style='color: #27ae60; font-weight: bold; margin-bottom: 5px;'>🟢 ĐIỂM CỘNG</div>", unsafe_allow_html=True)
+            df_kt = pd.DataFrame(kt_list_for_table)
+            edited_kt_df = st.data_editor(
+                df_kt, hide_index=True,
+                column_config={
+                    "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
+                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                    "Điểm gốc": None, "Loại gốc": None  
+                },
+                disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
+                use_container_width=True, height=450, key=key_kt
+            )
+        
+        # Gộp kết quả của cả 2 bảng lại để xử lý chung
+        selected_rows_vp = edited_vp_df[edited_vp_df["Số lần"] > 0]
+        selected_rows_kt = edited_kt_df[edited_kt_df["Số lần"] > 0]
+        selected_rows_ev = pd.concat([selected_rows_vp, selected_rows_kt])
 
     # ==========================================
     # KHU VỰC XÁC NHẬN VÀ LƯU DỮ LIỆU
     # ==========================================
     st.markdown("---")
     sl_hs = len(ids_to_apply)
-    sl_sk = selected_rows_ev["Số lần"].sum()
+    sl_sk = selected_rows_ev["Số lần"].sum() if not selected_rows_ev.empty else 0
     
     if sl_hs > 0 and sl_sk > 0:
-        st.info(f"👉 Sắp áp dụng **{sl_sk}** lượt sự kiện cho **{sl_hs}** học sinh đã chọn thuộc lớp {aclass}.")
+        st.info(f"👉 Sắp áp dụng **{int(sl_sk)}** lượt sự kiện cho **{sl_hs}** học sinh đã chọn.")
     
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
