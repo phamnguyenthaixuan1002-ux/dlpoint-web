@@ -617,19 +617,39 @@ def show_quick_record_page():
                     st.rerun() 
                 else:
                     st.error("Có lỗi xảy ra khi lưu CSDL.")
-# --- HÀM 4: GHI NHẬN KỶ LUẬT (XỬ LÝ HÀNG LOẠT & ĐA LUỒNG TT19) ---
+# --- HÀM 4: GHI NHẬN KỶ LUẬT (XỬ LÝ HÀNG LOẠT & ĐA LUỒNG TT19 - ĐÃ FIX LỖI ADMIN) ---
 def show_discipline_page():
     st.header("⚖️ Ghi nhận Kỷ luật & Leo thang Hành vi (TT19)")
     st.markdown("---")
 
     user = st.session_state.user_info
-    
-    raw_students = get_cached_students(user['role'], user['class'], user['group'])
+    role, aclass, agroup = user['role'], user['class'], user['group']
+
+    # ==========================================
+    # BỘ LỌC DÀNH RIÊNG CHO TÀI KHOẢN ADMIN
+    # ==========================================
+    if role == 'admin':
+        classes, _ = get_distinct_classes_and_groups_db()
+        if not classes:
+            st.warning("Hệ thống chưa có dữ liệu lớp học.")
+            return
+            
+        selected_class = st.selectbox("Lọc danh sách theo lớp (Dành cho Admin):", ["-- Chọn Lớp --"] + classes, key="admin_class_filter_disc")
+        
+        if selected_class == "-- Chọn Lớp --":
+            st.info("👈 Thầy/Cô vui lòng chọn một lớp để hiển thị danh sách học sinh cần xử lý kỷ luật.")
+            return
+        
+        # Ghi đè lớp của Admin thành lớp vừa chọn
+        aclass = selected_class
+
+    # Tải danh sách học sinh
+    raw_students = get_cached_students(role, aclass, agroup)
     if not raw_students:
-        st.warning("Không có học sinh nào trong phạm vi quản lý.")
+        st.warning(f"Lớp {aclass} hiện chưa có học sinh nào.")
         return
 
-    student_dict = {f"{hs[1]} (Lớp {hs[2]})": hs[0] for hs in raw_students}
+    student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
     
     all_events = get_cached_events()
     violation_events = sorted([e[1] for e in all_events if e[2] == "Vi phạm"])
@@ -642,7 +662,6 @@ def show_discipline_page():
     with col1:
         st.subheader("1. Đối tượng & Hành vi vi phạm")
         
-        # <<< SỬA ĐỔI: Chuyển thành Multiselect để chọn nhiều HS >>>
         selected_student_names = st.multiselect("Chọn học sinh vi phạm (Có thể chọn nhiều em):", options=list(student_dict.keys()), key="disc_hs_v3")
         event_date = st.date_input("Ngày xử lý:", format="DD/MM/YYYY", key="disc_date_v3")
         
@@ -772,49 +791,7 @@ def show_discipline_page():
                                                 
                                                 # Nếu em này bị mức A4 thì tạo PDF riêng cho ẻm
                                                 if final_action == "Lập Kế hoạch Hỗ trợ (A4)":
-                                                    hist_txt = "; ".join([f"{h[1]} ({h[2].strftime('%d/%m')})" for h in hs['history_obj'][:2]]) if hs['history_obj'] else "Đã nhắc nhở nhiều lần."
-                                                    safe_name = "".join(x for x in hs['Tên HS'] if x.isalnum() or x in " _-").replace(" ", "_")
-                                                    filepath = os.path.join(tmpdirname, f"BienBan_{safe_name}.pdf")
-                                                    
-                                                    if generate_intervention_pdf(hs['Tên HS'], user['class'], i_behavior, i_impact, hist_txt, i_hs_commit, i_ph_commit, i_gv_commit, filepath)[0]:
-                                                        pdf_files.append((f"BienBan_{safe_name}.pdf", filepath))
-                                        
-                                        # Nén ZIP nếu có nhiều file PDF
-                                        if len(pdf_files) > 0:
-                                            st.success(f"✅ Đã lưu CSDL cho {success_count} học sinh và tạo {len(pdf_files)} biên bản A4!")
-                                            if len(pdf_files) == 1:
-                                                with open(pdf_files[0][1], "rb") as f: st.download_button("📥 TẢI XUỐNG BIÊN BẢN A4", data=f.read(), file_name=pdf_files[0][0], mime="application/pdf", type="primary", use_container_width=True)
-                                            else:
-                                                zip_buf = io.BytesIO()
-                                                with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                                                    for fname, fpath in pdf_files: zf.write(fpath, arcname=fname)
-                                                st.download_button(f"📦 TẢI FILE ZIP {len(pdf_files)} BIÊN BẢN", data=zip_buf.getvalue(), file_name="DanhSach_BienBan.zip", mime="application/zip", type="primary", use_container_width=True)
-                                        else:
-                                            st.success(f"✅ Đã lưu kỷ luật thành công cho {success_count} học sinh!")
-
-                # ==========================================
-                # NẾU CẢ NHÓM CHỈ BỊ NHẮC NHỞ / PHÊ BÌNH (KHÔNG CÓ A4)
-                # ==========================================
-                else:
-                    ghi_chu = st.text_area("Ghi chú chung của GV (Tùy chọn):")
-                    if st.button(f"💾 Xác nhận Xử lý cho {len(selected_student_names)} học sinh", type="primary", use_container_width=True):
-                        if selected_violation == "-- Chọn lỗi gốc --" or not chuoi_hanh_vi:
-                            st.error("Vui lòng tick chọn lỗi và phân loại lỗi.")
-                        else:
-                            _, _, loai_sk, diem_sk, _ = lay_chi_tiet_danh_muc_su_kien_db(selected_violation)
-                            ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
-                            count = 0
-                            
-                            with st.spinner("Đang lưu dữ liệu..."):
-                                for hs in analysis_data:
-                                    final_action = hs["Đề xuất của AI"] if hinh_thuc_ap_dung == "✨ Tự động áp dụng theo Đề xuất của từng em (Khuyên dùng)" else hinh_thuc_ap_dung.replace("Áp dụng chung: ", "")
-                                    if them_su_kien_va_ky_luat_db(hs["ID"], f"{selected_violation} ({chuoi_hanh_vi})", loai_sk, diem_sk, ngay_tao_str, final_action, f"{chuoi_hanh_vi}. {ghi_chu}"):
-                                        count += 1
-                                        
-                            st.toast(f"✅ Đã xử lý kỷ luật thành công cho {count} học sinh!", icon="✅")
-                            st.rerun()
-        else:
-            st.write("👈 Vui lòng chọn (các) học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
+                                                    hist_txt = "; ".join([f"{h[1]} ({h[2].strftime('%d/%m')})" for h in hs['history_obj'][:2]]) if hs['histor
 # --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG & BẢN ĐỒ HÀNH VI) ---
 def show_statistics_page():
     st.header("📊 Phân tích & Cảnh báo Rèn luyện")
