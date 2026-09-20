@@ -470,7 +470,7 @@ def show_class_management():
                             st.write(f"**💬 Nhận xét:** {ph if ph else 'Không có'}")
                 else:
                     st.info("Chưa có lịch sử nhận xét nào được lưu.")
-# --- HÀM 8: GHI NHẬN NHANH (GIAO DIỆN HỢP NHẤT - KHÔNG GIẬT TRANG) ---
+# --- HÀM 8: GHI NHẬN NHANH (BẢN HỢP NHẤT - ĐÃ SỬA LỖI CHO TÀI KHOẢN ADMIN) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -478,12 +478,29 @@ def show_quick_record_page():
     user = st.session_state.user_info
     role, aclass, agroup = user['role'], user['class'], user['group']
     
-    if role == 'bcs':
+    # --- XỬ LÝ RIÊNG CHO TÀI KHOẢN ADMIN: BẮT BUỘC CHỌN LỚP TRƯỚC ---
+    if role == 'admin':
+        classes, _ = get_distinct_classes_and_groups_db()
+        if not classes:
+            st.warning("Hệ thống chưa có dữ liệu lớp học.")
+            return
+            
+        selected_class = st.selectbox("Lọc danh sách theo lớp (Dành cho Admin):", ["-- Chọn Lớp --"] + classes, key="admin_class_filter")
+        
+        if selected_class == "-- Chọn Lớp --":
+            st.info("👈 Thầy/Cô vui lòng chọn một lớp để hiển thị danh sách học sinh cần ghi nhận.")
+            return
+        
+        # Cập nhật lại biến aclass thành lớp Admin vừa chọn để tải dữ liệu
+        aclass = selected_class
+
+    elif role == 'bcs':
         st.info(f"🔒 **Chế độ Tổ trưởng:** Ghi nhận cho các thành viên **Tổ {agroup} - Lớp {aclass}**.")
     
+    # 1. Tải dữ liệu học sinh của lớp đã xác định
     raw_students = get_cached_students(role, aclass, agroup)
     if not raw_students:
-        st.warning("Không có học sinh nào trong phạm vi quản lý của bạn.")
+        st.warning(f"Lớp {aclass} hiện chưa có học sinh nào.")
         return
 
     # Chuẩn bị dữ liệu Sự kiện
@@ -500,13 +517,11 @@ def show_quick_record_page():
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
     st.markdown("---")
 
-    # MẸO: Dùng session_state để tạo "chìa khóa" reset bảng sau khi lưu thành công
     if 'reset_table_key' not in st.session_state:
         st.session_state.reset_table_key = 0
 
     st.info("💡 **Cách dùng siêu nhanh:** (1) Tick chọn một hoặc nhiều Học sinh bên trái. (2) Tăng 'Số lần' ở một hoặc nhiều Sự kiện bên phải. (3) Bấm Ghi nhận.")
 
-    # Chia 2 cột tỷ lệ 1:1.2
     col_hs, col_ev = st.columns([1, 1.2], gap="large")
 
     # ==========================================
@@ -518,7 +533,6 @@ def show_quick_record_page():
         df_hs.insert(0, "Chọn", False)
         df_hs.insert(1, "STT", range(1, len(df_hs) + 1))
         
-        # Gắn key động để tự reset khi cần
         key_hs = f"editor_hs_unified_{st.session_state.reset_table_key}"
         
         edited_hs_df = st.data_editor(
@@ -535,10 +549,8 @@ def show_quick_record_page():
             use_container_width=True, height=500, key=key_hs
         )
         
-        # Lọc ra danh sách ID HS được chọn
         selected_rows_hs = edited_hs_df[edited_hs_df["Chọn"] == True]
         ids_to_apply = selected_rows_hs["ID"].tolist()
-        names_to_apply = selected_rows_hs["Họ Tên"].tolist()
 
     # ==========================================
     # CỘT PHẢI: CHỌN SỰ KIỆN & SỐ LẦN
@@ -556,29 +568,25 @@ def show_quick_record_page():
                 "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d"),
                 "Loại": st.column_config.TextColumn(disabled=True, width="small"),
                 "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
-                "Điểm gốc": None, # Ẩn cột dữ liệu gốc đi cho gọn
-                "Loại gốc": None  # Ẩn cột dữ liệu gốc đi cho gọn
+                "Điểm gốc": None, 
+                "Loại gốc": None  
             },
             disabled=["Loại", "Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
             use_container_width=True, height=500, key=key_ev
         )
         
-        # Lọc ra các sự kiện có số lần > 0
         selected_rows_ev = edited_ev_df[edited_ev_df["Số lần"] > 0]
 
     # ==========================================
     # KHU VỰC XÁC NHẬN VÀ LƯU DỮ LIỆU
     # ==========================================
     st.markdown("---")
-    
-    # Hiển thị tóm tắt trước khi lưu
     sl_hs = len(ids_to_apply)
     sl_sk = selected_rows_ev["Số lần"].sum()
     
     if sl_hs > 0 and sl_sk > 0:
-        st.info(f"👉 Sắp áp dụng **{sl_sk}** lượt sự kiện cho **{sl_hs}** học sinh đã chọn.")
+        st.info(f"👉 Sắp áp dụng **{sl_sk}** lượt sự kiện cho **{sl_hs}** học sinh đã chọn thuộc lớp {aclass}.")
     
-    # Nút bấm trung tâm
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
         if st.button("🚀 XÁC NHẬN GHI NHẬN", type="primary", use_container_width=True):
@@ -587,7 +595,6 @@ def show_quick_record_page():
             else:
                 count_luu = 0
                 with st.spinner("Đang xử lý dữ liệu..."):
-                    # Vòng lặp kép: Quét từng HS, áp dụng từng sự kiện
                     for hs_id in ids_to_apply:
                         for _, row_ev in selected_rows_ev.iterrows():
                             ev_name = row_ev["Tên Sự Kiện"]
@@ -595,20 +602,17 @@ def show_quick_record_page():
                             loai_sk = row_ev["Loại gốc"]
                             diem_goc = int(row_ev["Điểm gốc"])
                             
-                            # Tính toán tổng điểm và chuỗi mô tả
                             diem_final = diem_goc * so_lan
                             mo_ta_final = f"{ev_name} ({so_lan} lần)" if so_lan > 1 else ev_name
                             
-                            # Gọi hàm CSDL
                             if them_su_kien_ren_luyen_db(hs_id, mo_ta_final, loai_sk, diem_final, ngay_tao_str): 
                                 count_luu += 1
                 
                 if count_luu > 0:
                     st.success(f"✅ HOÀN TẤT! Đã lưu {count_luu} bản ghi dữ liệu thành công.")
                     st.balloons()
-                    # MẸO: Tăng biến key lên 1 để Streamlit tự động "làm sạch" 2 bảng (bỏ tick và reset số về 0)
                     st.session_state.reset_table_key += 1
-                    st.rerun() # Tải lại giao diện ngay lập tức
+                    st.rerun() 
                 else:
                     st.error("Có lỗi xảy ra khi lưu CSDL.")
 # --- HÀM 4: GHI NHẬN KỶ LUẬT (XỬ LÝ HÀNG LOẠT & ĐA LUỒNG TT19) ---
