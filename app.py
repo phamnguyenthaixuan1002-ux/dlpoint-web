@@ -238,59 +238,58 @@ def show_class_management():
         st.info("Chưa có dữ liệu học sinh nào trong phạm vi quản lý của thầy/cô.")
         return
 
-    # Chuẩn bị dữ liệu bảng
     df = pd.DataFrame(raw_data, columns=["ID", "Họ và Tên", "Lớp", "Tổ", "SĐT Học sinh", "SĐT Zalo", "Ảnh thẻ"])
     df.insert(0, 'STT', range(1, 1 + len(df)))
 
-    # Chia layout: Danh sách (trái) - Chi tiết (phải). Trên điện thoại nó sẽ tự xếp dọc.
     col_list, col_detail = st.columns([1.2, 2], gap="large")
 
-    # ==========================================
-    # KHU VỰC 1: DANH SÁCH HỌC SINH (LUÔN HIỂN THỊ)
-    # ==========================================
     with col_list:
         st.write("👇 **Bấm vào 1 dòng để xem hồ sơ:**")
-        
-        # Tạo bảng tương tác (Bấm vào dòng nào, Streamlit tự nhận diện dòng đó)
         selection = st.dataframe(
             df[['ID', 'STT', 'Họ và Tên', 'Tổ']], 
             hide_index=True,
             use_container_width=True,
-            height=500, # Giới hạn chiều cao để có thanh cuộn, không làm trang web quá dài
+            height=500, 
             column_config={
-                "ID": None, # Ẩn cột ID đi cho đẹp, nhưng vẫn giữ để truy vấn
+                "ID": None, 
                 "STT": st.column_config.NumberColumn(width="small"),
                 "Tổ": st.column_config.TextColumn(width="small")
             },
-            selection_mode="single-row", # Chỉ cho phép chọn 1 dòng
-            on_select="rerun" # Tự động chạy lại app khi bấm chọn
+            selection_mode="single-row",
+            on_select="rerun"
         )
 
-    # ==========================================
-    # KHU VỰC 2: HỒ SƠ 360 ĐỘ CỦA HS ĐƯỢC CHỌN
-    # ==========================================
     with col_detail:
-        # Kiểm tra xem thầy có đang bấm chọn dòng nào trong bảng không
         selected_rows = selection.selection.rows
         
         if len(selected_rows) == 0:
-            # Giao diện chờ khi chưa chọn ai
             st.info("👈 Vui lòng bấm chọn một học sinh từ danh sách bên trái để xem Hồ sơ 360°.")
-            st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=150) # Ảnh minh họa vui vẻ
+            st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=150)
         else:
-            # Lấy ID của học sinh đang được bấm chọn
             selected_index = selected_rows[0]
             hs_id = int(df.iloc[selected_index]['ID'])
             
-            # --- CODE TẢI HỒ SƠ (GIỮ NGUYÊN NHƯ CŨ) ---
             student_info_tuple = lay_thong_tin_day_du_hoc_sinh_db(student_id=hs_id)
             if not student_info_tuple: return
                 
             info = dict(zip(["id"] + STUDENT_FIELDS_DB, student_info_tuple))
 
+            # --- LẤY DỮ LIỆU ĐỂ TÍNH TUẦN HỌC CHUẨN ---
+            import json
+            try:
+                start_date_str = load_setting('school_year_start_date', '2025-09-08')
+                h_json = json.loads(load_setting(HOLIDAY_SETTINGS_KEY, '[]'))
+                h_in_year = [(datetime.strptime(s, '%Y-%m-%d').date(), datetime.strptime(e, '%Y-%m-%d').date()) for s, e in h_json]
+                school_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except:
+                school_start_date = date.today()
+                h_in_year = []
+
+            all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
+            hs_events = [e for e in all_events if e[0] == hs_id]
+
             tab_tong_quan, tab_lich_su, tab_muc_tieu = st.tabs(["📝 Tổng quan & Biểu đồ", "📜 Lịch sử Rèn luyện", "🎯 Mục tiêu & Phản hồi"])
 
-            # === TAB 1: TỔNG QUAN ===
             with tab_tong_quan:
                 col_img, col_info = st.columns([1, 2], gap="medium")
                 
@@ -324,16 +323,29 @@ def show_class_management():
                     st.write(f"**SĐT LH:** {info.get('sdt_cha', '')} / {info.get('sdt_me', '')}")
                     
                 st.markdown("---")
-                st.write("**📈 Xu hướng rèn luyện (4 tuần)**")
-                chart_data = lay_du_lieu_bieu_do_ca_nhan(hs_id, num_weeks=4)
-                if chart_data:
-                    weeks = [f"Tuần {int(d[0])}" for d in chart_data]
-                    scores = [DIEM_KHOI_DAU + d[1] for d in chart_data]
-                    st.line_chart(pd.DataFrame({"Tổng điểm": scores}, index=weeks), color="#0078D7")
+                st.write("**📈 Xu hướng rèn luyện (4 tuần gần nhất)**")
+                
+                # <<< THUẬT TOÁN VẼ BIỂU ĐỒ MỚI (TÍNH THEO TUẦN HỌC THỰC TẾ) >>>
+                if hs_events:
+                    weekly_scores = {}
+                    for ev in hs_events:
+                        ev_date = ev[7].date() if isinstance(ev[7], datetime) else ev[7]
+                        # Chuyển đổi ngày xảy ra sự kiện thành Tuần học (1, 2, 3...)
+                        wk = get_school_week_number(ev_date, school_start_date, h_in_year)
+                        if wk > 0:
+                            weekly_scores[wk] = weekly_scores.get(wk, 0) + ev[6]
+                    
+                    if weekly_scores:
+                        recent_weeks = sorted(weekly_scores.keys())[-4:]
+                        weeks_labels = [f"Tuần {wk}" for wk in recent_weeks]
+                        scores_data = [DIEM_KHOI_DAU + weekly_scores[wk] for wk in recent_weeks]
+                        # Vẽ biểu đồ với nhãn "Tuần 1, Tuần 2..." chuẩn xác
+                        st.line_chart(pd.DataFrame({"Tổng điểm": scores_data}, index=weeks_labels), color="#0078D7")
+                    else:
+                        st.info("Chưa có dữ liệu rèn luyện trong năm học này.")
                 else:
                     st.info("Chưa có dữ liệu rèn luyện.")
 
-            # === TAB LỊCH SỬ (ĐÃ NÂNG CẤP TÍNH NĂNG XÓA) ===
             with tab_lich_su:
                 st.write("**1. Lịch sử Kỷ luật (Theo TT19)**")
                 history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
@@ -346,32 +358,22 @@ def show_class_management():
                 st.markdown("---")
                 st.write("**2. Chi tiết Sự kiện (+/- điểm)**")
                 
-                all_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', user['role'], user['class'], user['group'])
-                hs_events = [e for e in all_events if e[0] == hs_id]
-                
                 if hs_events:
                     df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày"])
                     df_events['Ngày'] = pd.to_datetime(df_events['Ngày']).dt.strftime('%d/%m/%Y %H:%M')
-                    
-                    # Thêm cột Checkbox để chọn xóa
                     df_events.insert(0, "Chọn xóa", False)
                     
-                    st.info("💡 Nếu ghi nhận nhầm, thầy/cô hãy đánh dấu tick [x] vào sự kiện ở bảng dưới và bấm nút Xóa.")
+                    st.info("💡 Nếu ghi nhận nhầm, đánh dấu tick [x] vào sự kiện ở bảng dưới và bấm nút Xóa.")
                     
-                    # Tạo bảng tương tác Data Editor
                     edited_ev_df = st.data_editor(
                         df_events[["Chọn xóa", "Ngày", "Nội dung", "Loại", "Điểm", "ID"]].sort_values("Ngày", ascending=False),
                         hide_index=True,
-                        column_config={
-                            "Chọn xóa": st.column_config.CheckboxColumn("Xóa", required=True),
-                            "ID": None # Ẩn cột ID
-                        },
-                        disabled=["Ngày", "Nội dung", "Loại", "Điểm", "ID"], # Khóa các cột khác, chỉ cho phép tick ô Xóa
+                        column_config={"Chọn xóa": st.column_config.CheckboxColumn("Xóa", required=True), "ID": None},
+                        disabled=["Ngày", "Nội dung", "Loại", "Điểm", "ID"],
                         use_container_width=True,
-                        key=f"editor_del_ev_{hs_id}"
+                        key=f"editor_del_ev_{hs_id}_{st.session_state.get('del_key', 0)}"
                     )
                     
-                    # Lọc ra các ID sự kiện được tick True
                     selected_ev_rows = edited_ev_df[edited_ev_df["Chọn xóa"] == True]
                     ids_to_del = selected_ev_rows["ID"].tolist()
                     
@@ -380,43 +382,30 @@ def show_class_management():
                             count_del = 0
                             with st.spinner("Đang xóa dữ liệu..."):
                                 for ev_id in ids_to_del:
-                                    if xoa_su_kien_ren_luyen_db(ev_id):
-                                        count_del += 1
-                                        
+                                    if xoa_su_kien_ren_luyen_db(ev_id): count_del += 1
                             if count_del > 0:
                                 st.toast(f"Đã gỡ bỏ thành công {count_del} sự kiện!", icon="✅")
-                                
-                                # <<< THÊM 2 DÒNG NÀY ĐỂ XÓA BỘ NHỚ TẠM CỦA BẢNG TRƯỚC KHI TẢI LẠI >>>
-                                if f"editor_del_ev_{hs_id}" in st.session_state:
-                                    del st.session_state[f"editor_del_ev_{hs_id}"]
-                                
-                                st.rerun() # Tải lại trang
+                                st.session_state['del_key'] = st.session_state.get('del_key', 0) + 1
+                                st.rerun() 
                 else: 
                     st.info("Chưa có sự kiện nào.")
 
-            # === TAB 3: MỤC TIÊU & PHẢN HỒI (LƯU THEO LỊCH SỬ THÁNG) ===
             with tab_muc_tieu:
                 st.write("📌 **Viết nhận xét & Đặt mục tiêu cho tháng:**")
-                
-                # 1. Chọn tháng để viết nhận xét (Mặc định là tháng hiện tại)
                 now = datetime.now()
                 thang_hien_tai = f"{now.month:02d}/{now.year}"
                 
-                # Lấy lịch sử cũ từ CSDL để hiển thị
                 lich_su_ph = lay_lich_su_phan_hoi_db(hs_id)
                 dict_ph = {row[0]: {"muc_tieu": row[1], "phan_hoi": row[2]} for row in lich_su_ph}
                 
-                # Danh sách các tháng để chọn (Tháng hiện tại + Các tháng đã có lịch sử)
                 danh_sach_thang = list(set([thang_hien_tai] + list(dict_ph.keys())))
-                danh_sach_thang.sort(reverse=True) # Sắp xếp mới nhất lên đầu
+                danh_sach_thang.sort(reverse=True)
                 
                 selected_month = st.selectbox("Chọn kỳ đánh giá:", danh_sach_thang, key=f"month_sel_{hs_id}")
                 
-                # Tải dữ liệu của tháng được chọn lên Form
                 muc_tieu_cu = dict_ph.get(selected_month, {}).get("muc_tieu", "")
                 phan_hoi_cu = dict_ph.get(selected_month, {}).get("phan_hoi", "")
                 
-                # --- NÚT GỌI TRỢ LÝ AI (Chỉ phân tích dữ liệu của tháng được chọn) ---
                 if st.button(f"✨ Nhờ AI viết nhận xét cho {selected_month}", type="secondary", width="stretch", key=f"ai_btn_{hs_id}"):
                     if "GEMINI_API_KEY" not in st.secrets:
                         st.error("Chưa cấu hình API Key của Google Gemini!")
@@ -427,14 +416,12 @@ def show_class_management():
                                 import calendar
                                 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                                 
-                                # Lọc dữ liệu đúng cái tháng đang được chọn
                                 m, y = map(int, selected_month.split('/'))
                                 start_m = datetime(y, m, 1).date()
                                 _, last_day = calendar.monthrange(y, m)
                                 end_m = datetime(y, m, last_day).date()
                                 
                                 sk_thang = [e for e in hs_events if start_m <= e[7].date() <= end_m]
-                                
                                 diem_thang = DIEM_KHOI_DAU + sum(e[6] for e in sk_thang)
                                 kt_str = ", ".join([e[4] for e in sk_thang if e[5] == "Khen thưởng"]) or "Chưa có nổi bật"
                                 vp_str = ", ".join([e[4] for e in sk_thang if e[5] == "Vi phạm"]) or "Không vi phạm"
@@ -448,7 +435,6 @@ def show_class_management():
 
                 hien_thi_phan_hoi = st.session_state.get(f"ai_phan_hoi_{hs_id}_{selected_month}", phan_hoi_cu)
                 
-                # 2. Ô Nhập liệu
                 new_muc_tieu = st.text_area("🎯 Mục tiêu do Học sinh/GVCN đề ra:", value=muc_tieu_cu, height=80, key=f"mt_{hs_id}")
                 new_phan_hoi = st.text_area("💬 Nhận xét & Phản hồi của GVCN:", value=hien_thi_phan_hoi, height=120, key=f"ph_{hs_id}")
                 
@@ -459,7 +445,6 @@ def show_class_management():
                             del st.session_state[f"ai_phan_hoi_{hs_id}_{selected_month}"]
                         st.rerun()
 
-                # 3. Khu vực hiển thị Lịch sử các tháng cũ (Dạng Dòng thời gian - Timeline)
                 st.markdown("---")
                 st.write("🕰️ **Lịch sử Phản hồi các tháng trước:**")
                 if lich_su_ph:
