@@ -2524,42 +2524,89 @@ def show_reward_store_page():
                     if st.button("🔄 Tải lại số dư mới", use_container_width=True): st.rerun()
 
     # ==========================================
-    # TAB 3: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
+    # TAB 3: PHÁT XU THƯỞNG & QUẢN LÝ VÍ XU 
     # ==========================================
     with tab_phatxu:
-        if role not in ['gvcn', 'admin']: st.error("Chỉ dành cho Giáo viên chủ nhiệm."); return
-        st.info("Phát Xu tự động cho các em đạt loại Tốt và Xuất sắc.")
-        
-        col_px1, col_px2 = st.columns([1, 2])
-        with col_px1: week_num = st.number_input("Chọn tuần:", min_value=1, max_value=52, value=1, step=1)
+        if role not in ['gvcn', 'admin']: 
+            st.error("Chỉ dành cho Giáo viên chủ nhiệm hoặc Admin.")
+            return
             
-        st.markdown("Quy tắc: **Xuất sắc (≥ 115đ) = +20 Xu** | **Tốt (100 - 114đ) = +10 Xu**")
+        col_px_left, col_px_right = st.columns([1, 1.2], gap="large")
         
-        if st.button("🔍 Quét kết quả & Phát Xu", type="primary", width="stretch"):
-            start_w, end_w = get_week_dates_by_number(week_num)
-            if not start_w: st.error("Lỗi ngày tháng."); return
+        # --- CỘT TRÁI: NÚT BẤM PHÁT XU ---
+        with col_px_left:
+            st.subheader("🎁 Phát Xu Tự Động")
+            st.info("Hệ thống sẽ tự động quét điểm rèn luyện của tuần được chọn để phát lương.")
             
-            with st.spinner("Đang tính điểm..."):
-                all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
-                events_by_student = {}
-                for ev in all_events: events_by_student.setdefault(ev[0], []).append(ev)
+            week_num = st.number_input("Chọn tuần để quét:", min_value=1, max_value=52, value=1, step=1)
+            st.markdown("Quy tắc thưởng: **Xuất sắc (≥ 115đ) = +20 Xu** | **Tốt (100 - 114đ) = +10 Xu**")
+            
+            if st.button("🔍 Quét kết quả & Phát Xu hàng loạt", type="primary", width="stretch"):
+                start_w, end_w = get_week_dates_by_number(week_num)
+                if not start_w: st.error("Lỗi ngày tháng."); return
                 
-                phat_xu_count = 0
-                for hs in raw_students:
-                    hs_id = hs[0]
-                    score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs_id, []))
-                    xep_loai = xep_loai_hanh_kiem(max(0, score)) 
+                with st.spinner("Đang tính điểm xếp loại rèn luyện tuần..."):
+                    all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
+                    events_by_student = {}
+                    for ev in all_events: events_by_student.setdefault(ev[0], []).append(ev)
                     
-                    xu_thuong = 0
-                    if xep_loai == "Xuất sắc": xu_thuong = 20
-                    elif xep_loai == "Tốt": xu_thuong = 10
-                    
-                    if xu_thuong > 0:
-                        cap_nhat_xu_thuong_db(hs_id, xu_thuong)
-                        them_su_kien_ren_luyen_db(hs_id, f"🪙 Thưởng Xu Tuần {week_num} ({xep_loai})", "Khen thưởng", 0, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                        phat_xu_count += 1
+                    phat_xu_count = 0
+                    for hs in raw_students:
+                        hs_id = hs[0]
+                        score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs_id, []))
+                        xep_loai = xep_loai_hanh_kiem(max(0, score)) 
                         
-            st.success(f"✅ Đã phát Xu thành công cho **{phat_xu_count}** học sinh!")
+                        xu_thuong = 0
+                        if xep_loai == "Xuất sắc": xu_thuong = 20
+                        elif xep_loai == "Tốt": xu_thuong = 10
+                        
+                        if xu_thuong > 0:
+                            cap_nhat_xu_thuong_db(hs_id, xu_thuong)
+                            ngay_tao = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            them_su_kien_ren_luyen_db(hs_id, f"🪙 Thưởng Xu Tuần {week_num} (Xếp loại Rèn luyện {xep_loai})", "Khen thưởng", 0, ngay_tao)
+                            phat_xu_count += 1
+                            
+                st.success(f"✅ Đã phát Xu thưởng thành công cho **{phat_xu_count}** học sinh đạt loại Tốt/Xuất sắc trong Tuần {week_num}!")
+                # Tải lại trang để bảng Thống kê Xu bên phải cập nhật ngay lập tức
+                st.rerun() 
+
+        # --- CỘT PHẢI: BẢNG THỐNG KÊ XU CỦA CẢ LỚP ---
+        with col_px_right:
+            st.subheader("💰 Thống Kê Số Dư Xu Toàn Lớp")
+            
+            with st.spinner("Đang tải dữ liệu ví xu..."):
+                # Lấy số dư hiện tại của tất cả học sinh
+                danh_sach_xu = []
+                for hs in raw_students:
+                    hs_id, ten_hs, to_hs = hs[0], hs[1], hs[3] or "Không rõ"
+                    so_du = lay_so_du_xu_db(hs_id)
+                    danh_sach_xu.append({
+                        "Họ và Tên": ten_hs,
+                        "Tổ": to_hs,
+                        "Số dư Xu 🪙": so_du
+                    })
+                    
+                df_xu = pd.DataFrame(danh_sach_xu)
+                
+                if not df_xu.empty:
+                    # Sắp xếp theo số xu giảm dần để vinh danh các bạn "Đại gia"
+                    df_xu = df_xu.sort_values(by=["Số dư Xu 🪙", "Họ và Tên"], ascending=[False, True])
+                    df_xu.insert(0, 'Hạng', range(1, len(df_xu) + 1))
+                    
+                    # Cấu hình bảng hiển thị đẹp mắt
+                    st.dataframe(
+                        df_xu,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=400, # Chốt chiều cao để giao diện không bị xộc xệch
+                        column_config={
+                            "Hạng": st.column_config.NumberColumn(width="small"),
+                            "Tổ": st.column_config.TextColumn(width="small"),
+                            "Số dư Xu 🪙": st.column_config.NumberColumn(format="%d Xu")
+                        }
+                    )
+                else:
+                    st.info("Chưa có dữ liệu học sinh.")
 # --- HÀM 11: SƠ ĐỒ LỚP HỌC (BẢN HOÀN CHỈNH - ĐÃ DỌN SẠCH CODE THỪA) ---
 def show_seating_chart_page():
     # 1. NÚT IN SƠ ĐỒ LỚP VÀ CSS ẨN MENU
