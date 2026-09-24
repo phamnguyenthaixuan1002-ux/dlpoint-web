@@ -2362,7 +2362,6 @@ def show_reward_store_page():
 
     # ==========================================
     # 1. THIẾT LẬP HỆ THỐNG DANH HIỆU (VIP TIERS)
-    # Dựa trên Tổng điểm rèn luyện (Điểm EXP)
     # ==========================================
     VIP_TIERS = [
         {"name": "Tân Binh", "min_exp": 0, "icon": "🔰", "color": "#95a5a6", "bg": "#f4f6f9", "level": 1},
@@ -2383,7 +2382,7 @@ def show_reward_store_page():
         return curr_tier, next_tier
 
     # ==========================================
-    # 2. DANH MỤC HÀNG HÓA SIÊU THỊ (Yêu cầu Hạng)
+    # 2. DANH MỤC HÀNG HÓA SIÊU THỊ 
     # ==========================================
     SUPERMARKET = {
         "🟢 Khu Vực Phổ Thông (Dành cho Mọi cấp độ)": [
@@ -2403,13 +2402,15 @@ def show_reward_store_page():
         ]
     }
 
-    tab_doiqua, tab_phatxu = st.tabs(["🛒 Siêu thị & Nâng hạng", "💰 Phát Xu Thưởng (Cho GVCN)"])
+    # <<< THÊM 1 TAB BẢNG XẾP HẠNG ĐẲNG CẤP VÀO ĐÂY >>>
+    tab_doiqua, tab_banghang, tab_phatxu = st.tabs(["🛒 Siêu thị & Nâng hạng", "🏅 Bảng Xếp Hạng Đẳng Cấp", "💰 Phát Xu Thưởng (Cho GVCN)"])
+
+    raw_students = get_cached_students(role, aclass, agroup)
 
     # ==========================================
     # TAB 1: MUA SẮM & HIỂN THỊ THẺ VIP
     # ==========================================
     with tab_doiqua:
-        raw_students = get_cached_students(role, aclass, agroup)
         if not raw_students: st.warning("Không có dữ liệu học sinh."); return
         student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
         
@@ -2426,15 +2427,12 @@ def show_reward_store_page():
             so_du_hien_tai = lay_so_du_xu_db(hs_id)
             hs_ten_ngan = selected_student.split("(")[0].strip()
 
-            # Tính Tổng điểm rèn luyện từ đầu năm (EXP) để xét hạng
             all_hs_events = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', role, aclass, agroup)
             my_events = [e for e in all_hs_events if e[0] == hs_id]
             exp_score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
             
-            # Lấy thông tin Hạng hiện tại và Hạng tiếp theo
             curr_tier, next_tier = get_vip_info(exp_score)
             
-            # Tính % tiến trình lên hạng
             if next_tier:
                 progress_pct = min(100, int((exp_score - curr_tier['min_exp']) / (next_tier['min_exp'] - curr_tier['min_exp']) * 100))
                 progress_text = f"Cần {next_tier['min_exp'] - exp_score} điểm rèn luyện nữa để thăng hạng {next_tier['icon']} {next_tier['name']}"
@@ -2442,20 +2440,22 @@ def show_reward_store_page():
                 progress_pct = 100
                 progress_text = "Đã đạt cấp độ tối đa!"
 
-            # --- VẼ THẺ VIP ĐIỆN TỬ BẰNG HTML ---
+            # <<< ĐÃ SỬA LỖI UI: TÁCH RIÊNG CỘT TRÁI (TÊN) VÀ CỘT PHẢI (SỐ XU) CHỐNG ĐÈ CHỮ >>>
             with col_the_vip:
                 st.markdown(f"""
-                <div style='background-color: {curr_tier['bg']}; padding: 15px 20px; border-radius: 15px; border: 2px solid {curr_tier['color']}; box-shadow: 0 4px 10px rgba(0,0,0,0.1); position: relative; margin-top: -15px;'>
-                    <div style='position: absolute; top: 15px; right: 20px; text-align: right;'>
-                        <p style='margin: 0; font-size: 12px; color: gray;'>SỐ DƯ HIỆN TẠI</p>
-                        <h2 style='margin: 0; color: #f39c12;'>🪙 {so_du_hien_tai} Xu</h2>
-                    </div>
-                    <div style='display: flex; align-items: center; gap: 15px;'>
-                        <div style='font-size: 50px;'>{curr_tier['icon']}</div>
-                        <div>
-                            <h3 style='margin: 0; color: #2c3e50;'>{hs_ten_ngan}</h3>
-                            <p style='margin: 0; font-weight: bold; color: {curr_tier['color']};'>Đẳng cấp: {curr_tier['name'].upper()}</p>
-                            <p style='margin: 0; font-size: 13px; color: #7f8fa6;'>Kinh nghiệm (Điểm RL): {exp_score} EXP</p>
+                <div style='background-color: {curr_tier['bg']}; padding: 15px 20px; border-radius: 15px; border: 2px solid {curr_tier['color']}; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-top: -15px;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; width: 100%;'>
+                        <div style='display: flex; align-items: center; gap: 15px; flex: 1;'>
+                            <div style='font-size: 50px;'>{curr_tier['icon']}</div>
+                            <div>
+                                <h3 style='margin: 0; color: #2c3e50; line-height: 1.2;'>{hs_ten_ngan}</h3>
+                                <p style='margin: 0; font-weight: bold; color: {curr_tier['color']};'>Đẳng cấp: {curr_tier['name'].upper()}</p>
+                                <p style='margin: 0; font-size: 13px; color: #7f8fa6;'>Kinh nghiệm (RL): {exp_score} EXP</p>
+                            </div>
+                        </div>
+                        <div style='text-align: right; min-width: 100px; padding-left: 10px; border-left: 1px dashed #ccc;'>
+                            <p style='margin: 0; font-size: 11px; color: gray; font-weight: bold;'>SỐ DƯ HIỆN TẠI</p>
+                            <h2 style='margin: 0; color: #f39c12; font-size: 28px;'>🪙 {so_du_hien_tai}</h2>
                         </div>
                     </div>
                     <div style='margin-top: 15px;'>
@@ -2467,40 +2467,32 @@ def show_reward_store_page():
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            curr_tier = VIP_TIERS[0] # Gán hạng mặc định để vẽ gian hàng khi chưa chọn HS
+            curr_tier = VIP_TIERS[0] 
             with col_the_vip:
                 st.info("👈 Chọn học sinh để xem Thẻ Đẳng cấp VIP và Số dư Xu.")
             
         st.markdown("---")
         st.subheader("🛍️ Gian hàng Đặc quyền")
         
-        # VẼ GIAN HÀNG SIÊU THỊ
         for category_name, items in SUPERMARKET.items():
             st.markdown(f"#### {category_name}")
             cols = st.columns(3)
             for i, item in enumerate(items):
                 with cols[i % 3]:
-                    # Kiểm tra xem học sinh có đủ Đẳng cấp (Level) để mua món này không
                     is_locked_by_tier = curr_tier['level'] < item['req_lvl']
-                    
-                    # Nếu bị khóa hạng, làm mờ thẻ sản phẩm (opacity 0.6) và chuyển màu xám
                     card_bg = "#f1f2f6" if is_locked_by_tier else item['color']
                     card_opacity = "0.6" if is_locked_by_tier else "1"
                     
                     st.markdown(f"<div style='background-color: {card_bg}; opacity: {card_opacity}; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #ddd; height: 180px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px;'><h1 style='margin:0; font-size: 40px;'>{item['icon']}</h1><p style='margin:10px 0; color: #333; font-weight: bold; font-size: 15px; line-height: 1.2;'>{item['name']}</p><h4 style='color: #d35400; margin:0;'>🪙 {item['cost']}</h4></div>", unsafe_allow_html=True)
                     
-                    # Logic Nút bấm hiển thị theo 3 trạng thái
                     if selected_student == "-- Chọn --":
                         st.button(f"🔒 Chọn HS để mua", disabled=True, key=f"btn_none_{item['name']}", use_container_width=True)
                     elif is_locked_by_tier:
-                        # Báo lỗi khóa hạng
                         req_tier_name = next(t['name'] for t in VIP_TIERS if t['level'] == item['req_lvl'])
                         st.button(f"🔒 Cần đạt {req_tier_name}", disabled=True, key=f"btn_tier_{hs_id}_{item['name']}", use_container_width=True)
                     elif so_du_hien_tai < item['cost']:
-                        # Báo lỗi thiếu tiền
                         st.button(f"🔒 Thiếu {item['cost'] - so_du_hien_tai} Xu", disabled=True, key=f"btn_money_{hs_id}_{item['name']}", use_container_width=True)
                     else:
-                        # Đủ điều kiện mua
                         if st.button(f"🛒 Mua ngay", key=f"btn_buy_{hs_id}_{item['name']}", type="primary", use_container_width=True):
                             cap_nhat_xu_thuong_db(hs_id, -item['cost'])
                             them_su_kien_ren_luyen_db(hs_id, f"🛍️ Đã mua: {item['name']} (-{item['cost']} Xu)", "Khen thưởng", 0, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -2510,7 +2502,68 @@ def show_reward_store_page():
             st.write("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # TAB 2: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
+    # TAB 2: BẢNG XẾP HẠNG ĐẲNG CẤP (TÍNH NĂNG MỚI)
+    # ==========================================
+    with tab_banghang:
+        st.subheader("🏅 Bảng Tổng sắp Đẳng cấp & Tài sản Lớp")
+        st.write("Bảng xếp hạng dựa trên Tổng Điểm Kinh Nghiệm (EXP) tích lũy từ đầu năm học.")
+        
+        if not raw_students:
+            st.warning("Lớp chưa có dữ liệu học sinh.")
+        else:
+            with st.spinner("Đang tính toán đẳng cấp toàn lớp..."):
+                all_events_year = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', role, aclass, agroup)
+                events_by_student = {}
+                for ev in all_events_year:
+                    events_by_student.setdefault(ev[0], []).append(ev)
+
+                rank_list = []
+                for hs in raw_students:
+                    hs_id = hs[0]
+                    ten_hs = hs[1]
+                    to_hs = hs[3] or "Không rõ"
+
+                    # Tính tổng EXP
+                    my_events = events_by_student.get(hs_id, [])
+                    exp_score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
+
+                    # Lấy thông tin Hạng VIP
+                    curr_tier, _ = get_vip_info(exp_score)
+                    
+                    # Lấy số dư Xu
+                    coins = lay_so_du_xu_db(hs_id)
+
+                    rank_list.append({
+                        "Họ và Tên": ten_hs,
+                        "Tổ": to_hs,
+                        "Đẳng cấp": f"{curr_tier['icon']} {curr_tier['name']}",
+                        "Kinh nghiệm (EXP)": exp_score,
+                        "Số dư Xu 🪙": coins,
+                        "_level": curr_tier['level'] # Cột ẩn dùng để sắp xếp cho chuẩn
+                    })
+
+                df_rank = pd.DataFrame(rank_list)
+                if not df_rank.empty:
+                    # Sắp xếp: Ưu tiên 1: Đẳng cấp cao (level), Ưu tiên 2: Nhiều EXP, Ưu tiên 3: Nhiều Xu
+                    df_rank = df_rank.sort_values(by=["_level", "Kinh nghiệm (EXP)", "Số dư Xu 🪙"], ascending=[False, False, False])
+                    df_rank.insert(0, 'Hạng', range(1, len(df_rank) + 1))
+                    df_rank = df_rank.drop(columns=["_level"]) # Cất cột ẩn đi
+
+                    # Hiển thị bảng
+                    st.dataframe(
+                        df_rank,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=500,
+                        column_config={
+                            "Hạng": st.column_config.NumberColumn(width="small"),
+                            "Tổ": st.column_config.TextColumn(width="small"),
+                            "Kinh nghiệm (EXP)": st.column_config.NumberColumn(format="%d XP"),
+                        }
+                    )
+
+    # ==========================================
+    # TAB 3: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
     # ==========================================
     with tab_phatxu:
         if role not in ['gvcn', 'admin']: st.error("Chỉ dành cho Giáo viên chủ nhiệm."); return
@@ -2527,13 +2580,13 @@ def show_reward_store_page():
             
             with st.spinner("Đang tính điểm..."):
                 all_events = lay_su_kien_trong_khoang_ngay_db(start_w.strftime('%Y-%m-%d'), (end_w + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
-                events_by_student = {}
-                for ev in all_events: events_by_student.setdefault(ev[0], []).append(ev)
+                events_by_student_px = {}
+                for ev in all_events: events_by_student_px.setdefault(ev[0], []).append(ev)
                 
                 phat_xu_count = 0
                 for hs in raw_students:
                     hs_id = hs[0]
-                    score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student.get(hs_id, []))
+                    score = DIEM_KHOI_DAU + sum(e[6] for e in events_by_student_px.get(hs_id, []))
                     xep_loai = xep_loai_hanh_kiem(max(0, score)) 
                     
                     xu_thuong = 0
