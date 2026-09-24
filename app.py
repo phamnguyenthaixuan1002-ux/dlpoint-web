@@ -192,28 +192,39 @@ def show_login_page():
                 st.session_state.mode = 'sos'
                 st.rerun()
 
+    # ... (phần trên của hàm show_login_page giữ nguyên) ...
+
+    # ========================================================
+    # MÀN HÌNH HÒM THƯ GÓP Ý (ĐÃ GỠ BỎ FORM ĐỂ GIAO DIỆN TƯƠNG TÁC NGAY LẬP TỨC)
+    # ========================================================
     elif st.session_state.mode == 'sos':
         col1, col2, col3 = st.columns([1, 2.5, 1])
         with col2:
             st.subheader("📮 Hòm Thư Lắng Nghe")
             st.write("Nơi tiếp nhận góp ý của Giáo viên bộ môn và Báo cáo ẩn danh của Học sinh.")
             
-            with st.form("form_gui_thu"):
+            # Đổi từ st.form sang st.container để giao diện mượt mà và cập nhật tức thì
+            with st.container(border=True):
                 loai_nguoi_gui = st.radio("Bạn là ai?", ["Giáo viên bộ môn", "Học sinh / Phụ huynh"], horizontal=True)
                 
+                # Logic sẽ chạy NGAY LẬP TỨC khi người dùng đổi lựa chọn ở trên
                 if loai_nguoi_gui == "Giáo viên bộ môn":
                     nguoi_gui = st.text_input("Họ tên & Môn dạy (VD: Cô Lan - Toán):")
                     loai_thu = "Góp ý từ GVBM"
                 else:
                     an_danh = st.checkbox("Gửi ẩn danh (Bảo mật tuyệt đối danh tính của em)", value=True)
-                    nguoi_gui = "Ẩn danh" if an_danh else st.text_input("Họ tên của em (Tùy chọn):", value="Ẩn danh")
+                    if an_danh:
+                        nguoi_gui = "Ẩn danh"
+                    else:
+                        nguoi_gui = st.text_input("Họ tên của em (Tùy chọn):", placeholder="Nhập tên của em vào đây...")
                     loai_thu = st.selectbox("Phân loại tin nhắn:", ["Báo cáo Khẩn cấp (Bạo lực, SOS...)", "Tư vấn tâm lý", "Góp ý xây dựng lớp"])
                 
                 classes, _ = get_distinct_classes_and_groups_db()
                 lop_lien_quan = st.selectbox("Gửi đến GVCN Lớp nào? *", ["-- Chọn lớp --"] + classes)
                 noi_dung = st.text_area("Nội dung chi tiết *", placeholder="Nhập nội dung vào đây. Nếu phản ánh học sinh cụ thể, vui lòng ghi rõ họ tên học sinh...", height=150)
                 
-                if st.form_submit_button("📤 Gửi Tin Nhắn", type="primary", use_container_width=True):
+                # Đổi st.form_submit_button thành st.button bình thường
+                if st.button("📤 Gửi Tin Nhắn", type="primary", use_container_width=True):
                     if lop_lien_quan == "-- Chọn lớp --" or not noi_dung:
                         st.error("Vui lòng chọn Lớp và nhập Nội dung.")
                     elif loai_nguoi_gui == "Giáo viên bộ môn" and not nguoi_gui:
@@ -221,8 +232,10 @@ def show_login_page():
                     else:
                         if gui_thu_gop_y_db(loai_thu, nguoi_gui, lop_lien_quan, noi_dung):
                             st.success("✅ Đã gửi thư thành công! Cảm ơn bạn đã chia sẻ. GVCN sẽ tiếp nhận và xử lý sớm nhất.")
-                        else: st.error("Có lỗi xảy ra.")
+                        else: 
+                            st.error("Có lỗi xảy ra khi kết nối máy chủ.")
             
+            st.write("<br>", unsafe_allow_html=True)
             if st.button("⬅️ Quay lại trang Đăng nhập"):
                 st.session_state.mode = 'login'
                 st.rerun()
