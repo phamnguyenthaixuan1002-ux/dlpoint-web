@@ -468,7 +468,7 @@ def show_class_management():
                             st.write(f"**💬 Nhận xét:** {ph if ph else 'Không có'}")
                 else:
                     st.info("Chưa có lịch sử nhận xét nào được lưu.")
-# --- HÀM 8: GHI NHẬN NHANH (BẢN TỐI ƯU HIỂN THỊ SONG SONG) ---
+# --- HÀM 8: GHI NHẬN NHANH (BẢN TỐI ƯU HIỂN THỊ CỘT BẢNG) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -495,7 +495,6 @@ def show_quick_record_page():
         st.warning(f"Lớp {aclass} hiện chưa có học sinh nào.")
         return
 
-    # TÁCH LÀM 2 DANH SÁCH RIÊNG BIỆT (VI PHẠM & KHEN THƯỞNG)
     all_events = get_cached_events()
     vp_list_for_table = []
     kt_list_for_table = []
@@ -516,8 +515,8 @@ def show_quick_record_page():
 
     st.info("💡 **Cách dùng:** (1) Tick chọn Học sinh bên trái. (2) Tăng 'Số lần' ở các Lỗi/Khen bên phải. (3) Bấm Ghi nhận.")
 
-    # Mở rộng tỷ lệ cột bên phải để chứa được 2 bảng song song (Tỷ lệ 1 : 1.8)
-    col_hs, col_ev = st.columns([1, 1.8], gap="large")
+    # <<< SỬA ĐỔI TỶ LỆ CỘT Ở ĐÂY (Nới rộng cột HS ra thêm 20%) >>>
+    col_hs, col_ev = st.columns([1.2, 1.8], gap="medium")
 
     # ==========================================
     # CỘT TRÁI: CHỌN HỌC SINH (BẢNG CHECKBOX)
@@ -534,14 +533,15 @@ def show_quick_record_page():
             df_hs[["Chọn", "STT", "Họ Tên", "Tổ", "ID"]],
             hide_index=True,
             column_config={
-                "Chọn": st.column_config.CheckboxColumn("Tích", required=True), 
-                "ID": None, 
-                "STT": st.column_config.NumberColumn(disabled=True, width="small"), 
-                "Họ Tên": st.column_config.TextColumn(disabled=True), 
-                "Tổ": st.column_config.TextColumn(disabled=True, width="small")
+                # Đổi tên cột thành biểu tượng và ép cứng kích thước nhỏ nhất
+                "Chọn": st.column_config.CheckboxColumn("☑️", required=True, width="small"), 
+                "STT": st.column_config.NumberColumn("STT", disabled=True, width="small"), 
+                "Họ Tên": st.column_config.TextColumn("Họ và Tên", disabled=True), 
+                "Tổ": st.column_config.TextColumn("Tổ", disabled=True, width="small"),
+                "ID": None
             },
             disabled=["STT", "Họ Tên", "Tổ", "ID"],
-            use_container_width=True, height=500, key=key_hs
+            use_container_width=True, height=450, key=key_hs
         )
         
         selected_rows_hs = edited_hs_df[edited_hs_df["Chọn"] == True]
@@ -553,7 +553,6 @@ def show_quick_record_page():
     with col_ev:
         st.write("📋 **2. Bấm (+) điền số lần Sự kiện:**")
         
-        # Chia cột con bên trong cột phải
         col_vp, col_kt = st.columns(2, gap="medium")
         
         key_vp = f"editor_vp_{st.session_state.reset_table_key}"
@@ -565,12 +564,12 @@ def show_quick_record_page():
             edited_vp_df = st.data_editor(
                 df_vp, hide_index=True,
                 column_config={
-                    "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
-                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                    "Số lần": st.column_config.NumberColumn("Lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
+                    "Tên Sự Kiện": st.column_config.TextColumn("Tên lỗi", disabled=True),
                     "Điểm gốc": None, "Loại gốc": None  
                 },
                 disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
-                use_container_width=True, height=450, key=key_vp
+                use_container_width=True, height=410, key=key_vp
             )
             
         with col_kt:
@@ -579,15 +578,14 @@ def show_quick_record_page():
             edited_kt_df = st.data_editor(
                 df_kt, hide_index=True,
                 column_config={
-                    "Số lần": st.column_config.NumberColumn("Số lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
-                    "Tên Sự Kiện": st.column_config.TextColumn(disabled=True),
+                    "Số lần": st.column_config.NumberColumn("Lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
+                    "Tên Sự Kiện": st.column_config.TextColumn("Tên khen thưởng", disabled=True),
                     "Điểm gốc": None, "Loại gốc": None  
                 },
                 disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
-                use_container_width=True, height=450, key=key_kt
+                use_container_width=True, height=410, key=key_kt
             )
         
-        # Gộp kết quả của cả 2 bảng lại để xử lý chung
         selected_rows_vp = edited_vp_df[edited_vp_df["Số lần"] > 0]
         selected_rows_kt = edited_kt_df[edited_kt_df["Số lần"] > 0]
         selected_rows_ev = pd.concat([selected_rows_vp, selected_rows_kt])
@@ -604,7 +602,7 @@ def show_quick_record_page():
     
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        if st.button("🚀 XÁC NHẬN GHI NHẬN", type="primary", use_container_width=True):
+        if st.button("🚀 XÁC NHẬN GHI NHẬN TẤT CẢ", type="primary", use_container_width=True):
             if sl_hs == 0 or sl_sk == 0:
                 st.error("👆 Thầy/Cô cần tick chọn ít nhất 1 Học sinh (Bảng trái) VÀ tăng số lần ở ít nhất 1 Sự kiện (Bảng phải).")
             else:
