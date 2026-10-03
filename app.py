@@ -2592,43 +2592,81 @@ def show_reward_store_page():
                     st.balloons()
 
     # ==========================================
-    # TAB 3: BẢNG XẾP HẠNG ĐẲNG CẤP (GIỮ NGUYÊN NHƯ BẢN TRƯỚC)
+    # ==========================================
+    # TAB 3: BẢNG XẾP HẠNG ĐẲNG CẤP (CÓ HƯỚNG DẪN THĂNG HẠNG)
     # ==========================================
     with tab_banghang:
         st.subheader("🏅 Bảng Tổng sắp Đẳng cấp & Tài sản Lớp")
         st.write("Bảng xếp hạng dựa trên Tổng Điểm Kinh Nghiệm (EXP) tích lũy từ đầu năm học.")
         
+        # <<< TÍNH NĂNG MỚI: HIỂN THỊ CÁCH TÍNH ĐẲNG CẤP >>>
+        with st.expander("📖 Xem Quy tắc Thăng hạng (Cần bao nhiêu điểm để lên Hạng?)", expanded=False):
+            st.write("Điểm Kinh nghiệm (EXP) của các em sẽ được cộng dồn từ đầu năm học. Mốc thăng hạng như sau:")
+            
+            # Vẽ các huy hiệu đẳng cấp bằng HTML Flexbox (Tự động thích ứng trên điện thoại)
+            html_badges = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 10px;'>"
+            for tier in VIP_TIERS:
+                html_badges += f"""
+                <div style='background-color: {tier['bg']}; border: 2px solid {tier['color']}; border-radius: 12px; padding: 10px 15px; text-align: center; min-width: 110px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
+                    <div style='font-size: 26px;'>{tier['icon']}</div>
+                    <div style='font-weight: bold; font-size: 13px; color: {tier['color']}; margin-top: 5px;'>{tier['name'].upper()}</div>
+                    <div style='font-size: 12px; color: #555; font-weight: 600;'>≥ {tier['min_exp']} EXP</div>
+                </div>
+                """
+            html_badges += "</div>"
+            st.markdown(html_badges, unsafe_allow_html=True)
+            st.info("💡 **Mẹo:** Các em hãy hăng hái phát biểu, làm việc tốt để tích lũy EXP. Dùng Xu mua đồ trong Siêu thị sẽ bị trừ Xu, nhưng Điểm EXP để tính Hạng thì KHÔNG BAO GIỜ bị trừ đi nhé!")
+        
+        st.markdown("---")
+        
+        # --- BẢNG XẾP HẠNG (GIỮ NGUYÊN NHƯ CŨ) ---
         if not raw_students:
             st.warning("Lớp chưa có dữ liệu học sinh.")
         else:
             with st.spinner("Đang tính toán đẳng cấp toàn lớp..."):
                 all_events_year = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', role, aclass, agroup)
                 events_by_student = {}
-                for ev in all_events_year: events_by_student.setdefault(ev[0], []).append(ev)
+                for ev in all_events_year:
+                    events_by_student.setdefault(ev[0], []).append(ev)
 
                 rank_list = []
                 for hs in raw_students:
                     hs_id, ten_hs, to_hs = hs[0], hs[1], hs[3] or "Không rõ"
+
+                    # Tính tổng EXP
                     my_events = events_by_student.get(hs_id, [])
                     exp_score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
+
+                    # Lấy thông tin Hạng VIP
                     curr_tier, _ = get_vip_info(exp_score)
                     coins = lay_so_du_xu_db(hs_id)
 
                     rank_list.append({
-                        "Họ và Tên": ten_hs, "Tổ": to_hs, "Đẳng cấp": f"{curr_tier['icon']} {curr_tier['name']}",
-                        "Kinh nghiệm (EXP)": exp_score, "Số dư Xu 🪙": coins, "_level": curr_tier['level'] 
+                        "Họ và Tên": ten_hs,
+                        "Tổ": to_hs,
+                        "Đẳng cấp": f"{curr_tier['icon']} {curr_tier['name']}",
+                        "Kinh nghiệm (EXP)": exp_score,
+                        "Số dư Xu 🪙": coins,
+                        "_level": curr_tier['level'] # Cột ẩn dùng để sắp xếp
                     })
 
                 df_rank = pd.DataFrame(rank_list)
                 if not df_rank.empty:
                     df_rank = df_rank.sort_values(by=["_level", "Kinh nghiệm (EXP)", "Số dư Xu 🪙"], ascending=[False, False, False])
                     df_rank.insert(0, 'Hạng', range(1, len(df_rank) + 1))
-                    df_rank = df_rank.drop(columns=["_level"]) 
-                    st.dataframe(
-                        df_rank, hide_index=True, use_container_width=True, height=500,
-                        column_config={"Hạng": st.column_config.NumberColumn(width="small"), "Tổ": st.column_config.TextColumn(width="small"), "Kinh nghiệm (EXP)": st.column_config.NumberColumn(format="%d XP")}
-                    )
+                    df_rank = df_rank.drop(columns=["_level"])
 
+                    st.dataframe(
+                        df_rank,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=500,
+                        column_config={
+                            "Hạng": st.column_config.NumberColumn(width="small"),
+                            "Tổ": st.column_config.TextColumn(width="small"),
+                            "Kinh nghiệm (EXP)": st.column_config.NumberColumn(format="%d XP"),
+                        }
+                    )
     # ==========================================
     # TAB 4: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
     # ==========================================
