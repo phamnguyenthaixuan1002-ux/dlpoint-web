@@ -2514,7 +2514,7 @@ def show_reward_store_page():
             {"name": "Chọn chỗ ngồi 1 tiết Sinh hoạt 🪑", "type": "qua", "value": 0, "color": "#8e44ad"},
             {"name": "Yêu cầu 1 bài hát giải lao 🎵", "type": "qua", "value": 0, "color": "#2980b9"},
             {"name": "Cộng 10 điểm rèn luyện cá nhân 📈", "type": "diem", "value": 10, "color": "#16a085"},
-            {"name": "Được làm lớp trưởng 1 ngày 👑", "type": "qua", "value": 0, "color": "#d35400"},
+            {"name": "Chúc em may mắn lần sau!", "type": "qua", "value": 0, "color": "#d35400"},
             {"name": "Nhận 1 tràng pháo tay của cả lớp 👏", "type": "qua", "value": 0, "color": "#c0392b"}
         ]
         
