@@ -2350,7 +2350,7 @@ def show_leaderboard_page():
                 cols_no_bonus[i % 3].markdown(f"🔹 {ten_hs}")
     else:
         st.success(f"✨ Thật tuyệt vời! 100% học sinh đều có điểm cộng tích cực trong tuần {selected_week}!")
-# --- HÀM 10: SIÊU THỊ ĐỔI THƯỞNG & HỆ THỐNG DANH HIỆU VIP ---
+# --- HÀM 10: SIÊU THỊ ĐỔI THƯỞNG, VIP & VÒNG QUAY ĐẶC QUYỀN ---
 def show_reward_store_page():
     st.header("🎁 Siêu thị Đổi Thưởng & Đặc Quyền VIP")
     st.markdown("---")
@@ -2380,7 +2380,7 @@ def show_reward_store_page():
         return curr_tier, next_tier
 
     # ==========================================
-    # 2. DANH MỤC HÀNG HÓA SIÊU THỊ 
+    # 2. DANH MỤC HÀNG HÓA SIÊU THỊ
     # ==========================================
     SUPERMARKET = {
         "🟢 Khu Vực Phổ Thông (Dành cho Mọi cấp độ)": [
@@ -2400,8 +2400,8 @@ def show_reward_store_page():
         ]
     }
 
-    # <<< THÊM 1 TAB BẢNG XẾP HẠNG ĐẲNG CẤP VÀO ĐÂY >>>
-    tab_doiqua, tab_banghang, tab_phatxu = st.tabs(["🛒 Siêu thị & Nâng hạng", "🏅 Bảng Xếp Hạng Đẳng Cấp", "💰 Phát Xu Thưởng (Cho GVCN)"])
+    # <<< TẠO 4 TAB (BỔ SUNG VÒNG QUAY ĐẶC QUYỀN) >>>
+    tab_doiqua, tab_vongquay, tab_banghang, tab_phatxu = st.tabs(["🛒 Siêu thị", "🎡 Vòng Quay Đặc Quyền", "🏅 Bảng Xếp Hạng", "💰 Phát Xu Thưởng"])
 
     raw_students = get_cached_students(role, aclass, agroup)
 
@@ -2433,12 +2433,11 @@ def show_reward_store_page():
             
             if next_tier:
                 progress_pct = min(100, int((exp_score - curr_tier['min_exp']) / (next_tier['min_exp'] - curr_tier['min_exp']) * 100))
-                progress_text = f"Cần {next_tier['min_exp'] - exp_score} điểm rèn luyện nữa để thăng hạng {next_tier['icon']} {next_tier['name']}"
+                progress_text = f"Cần {next_tier['min_exp'] - exp_score} điểm nữa để lên {next_tier['icon']} {next_tier['name']}"
             else:
                 progress_pct = 100
                 progress_text = "Đã đạt cấp độ tối đa!"
 
-            # <<< ĐÃ SỬA LỖI UI: TÁCH RIÊNG CỘT TRÁI (TÊN) VÀ CỘT PHẢI (SỐ XU) CHỐNG ĐÈ CHỮ >>>
             with col_the_vip:
                 st.markdown(f"""
                 <div style='background-color: {curr_tier['bg']}; padding: 15px 20px; border-radius: 15px; border: 2px solid {curr_tier['color']}; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-top: -15px;'>
@@ -2448,7 +2447,7 @@ def show_reward_store_page():
                             <div>
                                 <h3 style='margin: 0; color: #2c3e50; line-height: 1.2;'>{hs_ten_ngan}</h3>
                                 <p style='margin: 0; font-weight: bold; color: {curr_tier['color']};'>Đẳng cấp: {curr_tier['name'].upper()}</p>
-                                <p style='margin: 0; font-size: 13px; color: #7f8fa6;'>Kinh nghiệm (RL): {exp_score} EXP</p>
+                                <p style='margin: 0; font-size: 13px; color: #7f8fa6;'>Kinh nghiệm: {exp_score} EXP</p>
                             </div>
                         </div>
                         <div style='text-align: right; min-width: 100px; padding-left: 10px; border-left: 1px dashed #ccc;'>
@@ -2466,8 +2465,7 @@ def show_reward_store_page():
                 """, unsafe_allow_html=True)
         else:
             curr_tier = VIP_TIERS[0] 
-            with col_the_vip:
-                st.info("👈 Chọn học sinh để xem Thẻ Đẳng cấp VIP và Số dư Xu.")
+            with col_the_vip: st.info("👈 Chọn học sinh để xem Thẻ Đẳng cấp VIP và Số dư Xu.")
             
         st.markdown("---")
         st.subheader("🛍️ Gian hàng Đặc quyền")
@@ -2500,7 +2498,101 @@ def show_reward_store_page():
             st.write("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # TAB 2: BẢNG XẾP HẠNG ĐẲNG CẤP (TÍNH NĂNG MỚI)
+    # TAB 2: VÒNG QUAY ĐẶC QUYỀN (THẦY XUÂN TẶNG THƯỞNG)
+    # ==========================================
+    with tab_vongquay:
+        if role not in ['gvcn', 'admin']: 
+            st.error("Chỉ GVCN mới có quyền mở Vòng quay Đặc quyền."); return
+            
+        st.info("💡 **Dành riêng cho HS nỗ lực:** Thầy/Cô chọn tên học sinh có thành tích xuất sắc hoặc nỗ lực vươn lên để tặng lượt quay. Vòng quay này KHÔNG tốn Xu của học sinh.")
+        
+        # Danh sách quà tặng mang tính tinh thần và gắn kết do thầy Xuân thiết kế
+        DAC_QUYEN_PRIZES = [
+            {"name": "Miễn trực nhật 1 buổi 🧹", "type": "qua", "value": 0, "color": "#27ae60"},
+            {"name": "Thầy Xuân bao 1 ly nước mía 🥤", "type": "qua", "value": 0, "color": "#f39c12"},
+            {"name": "Cộng 15 điểm rèn luyện cho Tổ 🏆", "type": "diem_to", "value": 15, "color": "#e74c3c"},
+            {"name": "Chọn chỗ ngồi 1 tiết Sinh hoạt 🪑", "type": "qua", "value": 0, "color": "#8e44ad"},
+            {"name": "Yêu cầu 1 bài hát giải lao 🎵", "type": "qua", "value": 0, "color": "#2980b9"},
+            {"name": "Cộng 10 điểm rèn luyện cá nhân 📈", "type": "diem", "value": 10, "color": "#16a085"},
+            {"name": "Được làm lớp trưởng 1 ngày 👑", "type": "qua", "value": 0, "color": "#d35400"},
+            {"name": "Nhận 1 tràng pháo tay của cả lớp 👏", "type": "qua", "value": 0, "color": "#c0392b"}
+        ]
+        
+        # Chia 2 cột hiển thị gọn gàng trên mobile
+        st.write("#### 🎁 Các phần thưởng trên vòng quay:")
+        cols_prize = st.columns(2)
+        for i, prize in enumerate(DAC_QUYEN_PRIZES):
+            with cols_prize[i % 2]:
+                st.markdown(f"""
+                <div style='background-color: white; border: 2px solid {prize['color']}; padding: 8px; border-radius: 8px; text-align: center; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center;'>
+                    <span style='color: {prize['color']}; font-weight: 700; font-size: 13px;'>{prize['name']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+        st.markdown("---")
+        
+        col_vq_hs, col_vq_btn = st.columns([1.5, 1], gap="medium")
+        with col_vq_hs:
+            # Dropdown tìm học sinh
+            if not raw_students: student_dict_vq = {}
+            else: student_dict_vq = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in raw_students}
+            selected_student_vq = st.selectbox("Chọn học sinh nỗ lực:", ["-- Chọn --"] + list(student_dict_vq.keys()), key="sb_vq_dq")
+            
+        with col_vq_btn:
+            st.write("")
+            st.write("")
+            import random
+            import time
+            if selected_student_vq == "-- Chọn --":
+                st.button("🔒 Chọn HS để kích hoạt", disabled=True, use_container_width=True, key="btn_vq_lock_dq")
+            else:
+                if st.button("🎡 BẮT ĐẦU QUAY THƯỞNG", type="primary", use_container_width=True, key="btn_vq_spin_dq"):
+                    hs_id_vq = student_dict_vq[selected_student_vq]
+                    hs_ten_ngan_vq = selected_student_vq.split("(")[0].strip()
+                    
+                    spin_placeholder = st.empty()
+                    win_prize = random.choice(DAC_QUYEN_PRIZES)
+                    
+                    # Hiệu ứng quay chậm dần
+                    for i in range(25):
+                        temp_prize = random.choice(DAC_QUYEN_PRIZES)
+                        spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{temp_prize['color']}; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'><h2 style='color:white; margin:0; text-align:center;'>{temp_prize['name']}</h2></div>", unsafe_allow_html=True)
+                        time.sleep(0.04 + (i * 0.008)) 
+                        
+                    # Chốt kết quả
+                    spin_placeholder.markdown(f"<div style='height:160px; display:flex; justify-content:center; align-items:center; background:{win_prize['color']}; border-radius:15px; border: 6px solid #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.6);'><h2 style='color:white; margin:0; text-align:center;'>{win_prize['name']}</h2></div>", unsafe_allow_html=True)
+                    
+                    # --- XỬ LÝ LƯU THƯỞNG ---
+                    ngay_quay = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    if win_prize['type'] == 'diem':
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Vòng quay Đặc quyền: {win_prize['name']}", "Khen thưởng", win_prize['value'], ngay_quay)
+                        st.success(f"🎉 Chúc mừng **{hs_ten_ngan_vq}** đã được cộng thêm {win_prize['value']} điểm rèn luyện cá nhân!")
+                        
+                    elif win_prize['type'] == 'diem_to':
+                        # Thuật toán siêu cấp: Lấy ID của tất cả các bạn cùng Tổ và cộng điểm
+                        hs_to = next((hs[3] for hs in raw_students if hs[0] == hs_id_vq), None)
+                        if hs_to:
+                            count_to = 0
+                            for hs in raw_students:
+                                if hs[3] == hs_to:
+                                    them_su_kien_ren_luyen_db(hs[0], f"🎡 Đặc quyền từ bạn {hs_ten_ngan_vq}: Cộng {win_prize['value']} điểm cho Tổ", "Khen thưởng", win_prize['value'], ngay_quay)
+                                    count_to += 1
+                            st.success(f"🎉 Quá tuyệt vời! Nhờ **{hs_ten_ngan_vq}**, toàn bộ **{count_to}** thành viên của Tổ {hs_to} đều được cộng {win_prize['value']} điểm rèn luyện!")
+                            
+                    elif win_prize['type'] == 'xu':
+                        cap_nhat_xu_thuong_db(hs_id_vq, win_prize['value'])
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Vòng quay Đặc quyền: {win_prize['name']}", "Khen thưởng", 0, ngay_quay)
+                        st.success(f"🎉 Chúc mừng **{hs_ten_ngan_vq}** đã nhận được {win_prize['value']} Xu!")
+                        
+                    else: # Phần thưởng tinh thần (qua)
+                        them_su_kien_ren_luyen_db(hs_id_vq, f"🎡 Vòng quay Đặc quyền: {win_prize['name']}", "Khen thưởng", 0, ngay_quay)
+                        st.success(f"🎉 Chúc mừng **{hs_ten_ngan_vq}** đã quay trúng: **{win_prize['name']}**")
+                    
+                    st.balloons()
+
+    # ==========================================
+    # TAB 3: BẢNG XẾP HẠNG ĐẲNG CẤP (GIỮ NGUYÊN NHƯ BẢN TRƯỚC)
     # ==========================================
     with tab_banghang:
         st.subheader("🏅 Bảng Tổng sắp Đẳng cấp & Tài sản Lớp")
@@ -2512,60 +2604,37 @@ def show_reward_store_page():
             with st.spinner("Đang tính toán đẳng cấp toàn lớp..."):
                 all_events_year = lay_su_kien_trong_khoang_ngay_db('2020-01-01', '2100-01-01', role, aclass, agroup)
                 events_by_student = {}
-                for ev in all_events_year:
-                    events_by_student.setdefault(ev[0], []).append(ev)
+                for ev in all_events_year: events_by_student.setdefault(ev[0], []).append(ev)
 
                 rank_list = []
                 for hs in raw_students:
-                    hs_id = hs[0]
-                    ten_hs = hs[1]
-                    to_hs = hs[3] or "Không rõ"
-
-                    # Tính tổng EXP
+                    hs_id, ten_hs, to_hs = hs[0], hs[1], hs[3] or "Không rõ"
                     my_events = events_by_student.get(hs_id, [])
                     exp_score = DIEM_KHOI_DAU + sum(e[6] for e in my_events)
-
-                    # Lấy thông tin Hạng VIP
                     curr_tier, _ = get_vip_info(exp_score)
-                    
-                    # Lấy số dư Xu
                     coins = lay_so_du_xu_db(hs_id)
 
                     rank_list.append({
-                        "Họ và Tên": ten_hs,
-                        "Tổ": to_hs,
-                        "Đẳng cấp": f"{curr_tier['icon']} {curr_tier['name']}",
-                        "Kinh nghiệm (EXP)": exp_score,
-                        "Số dư Xu 🪙": coins,
-                        "_level": curr_tier['level'] # Cột ẩn dùng để sắp xếp cho chuẩn
+                        "Họ và Tên": ten_hs, "Tổ": to_hs, "Đẳng cấp": f"{curr_tier['icon']} {curr_tier['name']}",
+                        "Kinh nghiệm (EXP)": exp_score, "Số dư Xu 🪙": coins, "_level": curr_tier['level'] 
                     })
 
                 df_rank = pd.DataFrame(rank_list)
                 if not df_rank.empty:
-                    # Sắp xếp: Ưu tiên 1: Đẳng cấp cao (level), Ưu tiên 2: Nhiều EXP, Ưu tiên 3: Nhiều Xu
                     df_rank = df_rank.sort_values(by=["_level", "Kinh nghiệm (EXP)", "Số dư Xu 🪙"], ascending=[False, False, False])
                     df_rank.insert(0, 'Hạng', range(1, len(df_rank) + 1))
-                    df_rank = df_rank.drop(columns=["_level"]) # Cất cột ẩn đi
-
-                    # Hiển thị bảng
+                    df_rank = df_rank.drop(columns=["_level"]) 
                     st.dataframe(
-                        df_rank,
-                        hide_index=True,
-                        use_container_width=True,
-                        height=500,
-                        column_config={
-                            "Hạng": st.column_config.NumberColumn(width="small"),
-                            "Tổ": st.column_config.TextColumn(width="small"),
-                            "Kinh nghiệm (EXP)": st.column_config.NumberColumn(format="%d XP"),
-                        }
+                        df_rank, hide_index=True, use_container_width=True, height=500,
+                        column_config={"Hạng": st.column_config.NumberColumn(width="small"), "Tổ": st.column_config.TextColumn(width="small"), "Kinh nghiệm (EXP)": st.column_config.NumberColumn(format="%d XP")}
                     )
 
     # ==========================================
-    # TAB 3: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
+    # TAB 4: PHÁT XU THƯỞNG (GIỮ NGUYÊN)
     # ==========================================
     with tab_phatxu:
         if role not in ['gvcn', 'admin']: st.error("Chỉ dành cho Giáo viên chủ nhiệm."); return
-        st.info("Hàng tuần, sau khi xem Tổng kết, GVCN vào đây để thưởng Xu tự động cho các em đạt loại Tốt và Xuất sắc.")
+        st.info("Phát Xu tự động cho các em đạt loại Tốt và Xuất sắc.")
         
         col_px1, col_px2 = st.columns([1, 2])
         with col_px1: week_num = st.number_input("Chọn tuần:", min_value=1, max_value=52, value=1, step=1)
