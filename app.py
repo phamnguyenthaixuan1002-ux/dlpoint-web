@@ -2599,25 +2599,18 @@ def show_reward_store_page():
         st.subheader("🏅 Bảng Tổng sắp Đẳng cấp & Tài sản Lớp")
         st.write("Bảng xếp hạng dựa trên Tổng Điểm Kinh Nghiệm (EXP) tích lũy từ đầu năm học.")
         
-        # <<< TÍNH NĂNG MỚI: HIỂN THỊ CÁCH TÍNH ĐẲNG CẤP >>>
+        # <<< TÍNH NĂNG MỚI: HIỂN THỊ CÁCH TÍNH ĐẲNG CẤP (ĐÃ ÉP DÒNG CHỐNG LỖI) >>>
         with st.expander("📖 Xem Quy tắc Thăng hạng (Cần bao nhiêu điểm để lên Hạng?)", expanded=False):
             st.write("Điểm Kinh nghiệm (EXP) của các em sẽ được cộng dồn từ đầu năm học. Mốc thăng hạng như sau:")
             
-            # Vẽ các huy hiệu đẳng cấp bằng HTML Flexbox (Tự động thích ứng trên điện thoại)
+            # Gộp HTML vào 1 dòng để chống lỗi hiển thị code thô của Streamlit
             html_badges = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 10px;'>"
             for tier in VIP_TIERS:
-                html_badges += f"""
-                <div style='background-color: {tier['bg']}; border: 2px solid {tier['color']}; border-radius: 12px; padding: 10px 15px; text-align: center; min-width: 110px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
-                    <div style='font-size: 26px;'>{tier['icon']}</div>
-                    <div style='font-weight: bold; font-size: 13px; color: {tier['color']}; margin-top: 5px;'>{tier['name'].upper()}</div>
-                    <div style='font-size: 12px; color: #555; font-weight: 600;'>≥ {tier['min_exp']} EXP</div>
-                </div>
-                """
+                html_badges += f"<div style='background-color: {tier['bg']}; border: 2px solid {tier['color']}; border-radius: 12px; padding: 10px 15px; text-align: center; min-width: 110px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'><div style='font-size: 26px;'>{tier['icon']}</div><div style='font-weight: bold; font-size: 13px; color: {tier['color']}; margin-top: 5px;'>{tier['name'].upper()}</div><div style='font-size: 12px; color: #555; font-weight: 600;'>≥ {tier['min_exp']} EXP</div></div>"
             html_badges += "</div>"
+            
             st.markdown(html_badges, unsafe_allow_html=True)
             st.info("💡 **Mẹo:** Các em hãy hăng hái phát biểu, làm việc tốt để tích lũy EXP. Dùng Xu mua đồ trong Siêu thị sẽ bị trừ Xu, nhưng Điểm EXP để tính Hạng thì KHÔNG BAO GIỜ bị trừ đi nhé!")
-        
-        st.markdown("---")
         
         # --- BẢNG XẾP HẠNG (GIỮ NGUYÊN NHƯ CŨ) ---
         if not raw_students:
