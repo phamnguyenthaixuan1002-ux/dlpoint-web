@@ -2825,11 +2825,15 @@ def show_seating_chart_page():
                     st.rerun()
 
     # ==========================================
-    # TAB: TỰ ĐỔI CHỖ BẰNG TAY (BẢN TỐI ƯU "2 CHẠM")
+    # TAB: TỰ ĐỔI CHỖ BẰNG TAY (FIX LỖI TYPE ERROR & TỐI ƯU TỐC ĐỘ)
     # ==========================================
     with tab_manual:
-        st.info("💡 **Cách làm siêu nhanh:** Bấm chọn đúng **2 dòng** trong bảng dưới đây (chọn 2 học sinh, hoặc 1 học sinh và 1 ghế trống) để đổi chỗ cho nhau.")
+        st.info("💡 **Mẹo siêu nhanh:** Thầy/Cô hãy bấm vào biểu tượng 🔍 ở góc phải của bảng để gõ tìm tên học sinh. Sau đó bấm chọn đúng **2 dòng** để hoán đổi chỗ.")
         
+        # Khởi tạo khóa động để tự động reset bảng sau khi lưu
+        if 'swap_reset_key' not in st.session_state:
+            st.session_state.swap_reset_key = 0
+
         # 1. Tạo danh sách tất cả các ghế và người ngồi hiện tại
         seat_list_for_table = []
         for c in range(1, so_day + 1):
@@ -2853,7 +2857,7 @@ def show_seating_chart_page():
                     
         df_seats = pd.DataFrame(seat_list_for_table)
 
-        # 2. Hiển thị Bảng tương tác (Cho phép chọn nhiều dòng)
+        # 2. Hiển thị Bảng tương tác (Sử dụng Khóa động)
         selection_swap = st.dataframe(
             df_seats[["Vị trí", "Học sinh đang ngồi", "Mã Ghế"]],
             hide_index=True,
@@ -2866,7 +2870,7 @@ def show_seating_chart_page():
             },
             selection_mode="multi-row", # Bật tính năng chọn nhiều
             on_select="rerun",
-            key="table_swap_manual_v1"
+            key=f"table_swap_manual_v2_{st.session_state.swap_reset_key}" # <<< KHÓA ĐỘNG Ở ĐÂY
         )
 
         # 3. Lấy ra các dòng thầy vừa bấm chọn
@@ -2891,18 +2895,6 @@ def show_seating_chart_page():
             st.success(f"🔄 Sắp hoán đổi: **{hs_a}** ↔️ **{hs_b}**")
             
             # Nút Xác nhận Đổi Chỗ
-            if st.button("🚀 XÁC NHẬN ĐỔI CHỖ", type="primary", use_container_width=True):
-                id_at_a = [k for k, v in current_plan.items() if v == code_a]
-                id_at_b = [k for k, v in current_plan.items() if v == code_b]
-                
-                if id_at_a: current_plan[id_at_a[0]] = code_b
-                if id_at_b: current_plan[id_at_b[0]] = code_a
-                
-                save_setting(setting_key, json.dumps(current_plan))
-                st.toast("Đã đổi chỗ thành công!", icon="✅")
-                # Xóa vùng nhớ chọn dòng để reset bảng về như cũ
-                st.session_state['table_swap_manual_v1']['selection']['rows'] = []
-                st.rerun()
 
     # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI HIỂN THỊ)
     import base64
