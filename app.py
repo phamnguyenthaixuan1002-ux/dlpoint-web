@@ -2824,45 +2824,85 @@ def show_seating_chart_page():
                     st.toast("Đã xếp chỗ hoàn tất!", icon="✅")
                     st.rerun()
 
+    # ==========================================
+    # TAB: TỰ ĐỔI CHỖ BẰNG TAY (BẢN TỐI ƯU "2 CHẠM")
+    # ==========================================
     with tab_manual:
-        st.write("Thầy/Cô chọn 2 vị trí dưới đây để hoán đổi chỗ ngồi cho nhau.")
+        st.info("💡 **Cách làm siêu nhanh:** Bấm chọn đúng **2 dòng** trong bảng dưới đây (chọn 2 học sinh, hoặc 1 học sinh và 1 ghế trống) để đổi chỗ cho nhau.")
         
-        all_seats_options = {}
+        # 1. Tạo danh sách tất cả các ghế và người ngồi hiện tại
+        seat_list_for_table = []
         for c in range(1, so_day + 1):
             for r in range(1, so_ban + 1):
                 for pos, pos_name in [("L", "Trái"), ("R", "Phải")]:
                     seat_code = f"D{c}-B{r}-{pos}"
                     display_name = f"Dãy {c} - Bàn {r} - {pos_name}"
                     
-                    hs_ngoi_day = "Trống"
+                    hs_ngoi_day = "--- Ghế Trống ---"
                     for hid_str, scode in current_plan.items():
                         if scode == seat_code:
                             hs_info = next((item for item in hs_data if item["id"] == int(hid_str)), None)
                             if hs_info: hs_ngoi_day = hs_info['ten_goc']
                             break
-                    all_seats_options[f"{display_name} ({hs_ngoi_day})"] = seat_code
                     
-        col_m1, col_m2, col_m3 = st.columns([2, 2, 1])
-        with col_m1: seat_a = st.selectbox("Đổi từ vị trí:", list(all_seats_options.keys()), key="swap_1")
-        with col_m2: seat_b = st.selectbox("Sang vị trí:", list(all_seats_options.keys()), key="swap_2")
-        with col_m3:
-            st.write("")
-            st.write("")
-            if st.button("🔄 Đổi Chỗ", type="primary", use_container_width=True):
-                if seat_a == seat_b:
-                    st.warning("Hai vị trí giống nhau!")
-                else:
-                    code_a = all_seats_options[seat_a]
-                    code_b = all_seats_options[seat_b]
-                    id_at_a = [k for k, v in current_plan.items() if v == code_a]
-                    id_at_b = [k for k, v in current_plan.items() if v == code_b]
+                    seat_list_for_table.append({
+                        "Vị trí": display_name,
+                        "Học sinh đang ngồi": hs_ngoi_day,
+                        "Mã Ghế": seat_code # Cột ẩn
+                    })
                     
-                    if id_at_a: current_plan[id_at_a[0]] = code_b
-                    if id_at_b: current_plan[id_at_b[0]] = code_a
-                    
-                    save_setting(setting_key, json.dumps(current_plan))
-                    st.toast("Đã đổi chỗ thành công!", icon="✅")
-                    st.rerun()
+        df_seats = pd.DataFrame(seat_list_for_table)
+
+        # 2. Hiển thị Bảng tương tác (Cho phép chọn nhiều dòng)
+        selection_swap = st.dataframe(
+            df_seats[["Vị trí", "Học sinh đang ngồi", "Mã Ghế"]],
+            hide_index=True,
+            use_container_width=True,
+            height=300,
+            column_config={
+                "Mã Ghế": None, # Ẩn mã ghế đi cho đẹp
+                "Vị trí": st.column_config.TextColumn(width="medium"),
+                "Học sinh đang ngồi": st.column_config.TextColumn(width="large")
+            },
+            selection_mode="multi-row", # Bật tính năng chọn nhiều
+            on_select="rerun",
+            key="table_swap_manual_v1"
+        )
+
+        # 3. Lấy ra các dòng thầy vừa bấm chọn
+        selected_rows = selection_swap.selection.rows
+        
+        # 4. Logic xử lý: Chỉ hiện nút Đổi khi chọn ĐÚNG 2 DÒNG
+        if len(selected_rows) == 0:
+            st.write("👈 Vui lòng bấm chọn 2 vị trí ở bảng trên.")
+        elif len(selected_rows) == 1:
+            st.warning("👉 Thầy/Cô đã chọn 1 vị trí. Vui lòng bấm chọn thêm 1 vị trí nữa để đổi.")
+        elif len(selected_rows) > 2:
+            st.error("⚠️ Thầy/Cô đang chọn quá 2 vị trí. Vui lòng bấm vào dòng thừa để bỏ chọn bớt.")
+        elif len(selected_rows) == 2:
+            # Lấy thông tin 2 ghế đã chọn
+            idx_a, idx_b = selected_rows[0], selected_rows[1]
+            seat_a = df_seats.iloc[idx_a]
+            seat_b = df_seats.iloc[idx_b]
+            
+            code_a, hs_a = seat_a["Mã Ghế"], seat_a["Học sinh đang ngồi"]
+            code_b, hs_b = seat_b["Mã Ghế"], seat_b["Học sinh đang ngồi"]
+            
+            st.success(f"🔄 Sắp hoán đổi: **{hs_a}** ↔️ **{hs_b}**")
+            
+            # Nút Xác nhận Đổi Chỗ
+            if st.button("🚀 XÁC NHẬN ĐỔI CHỖ", type="primary", use_container_width=True):
+                id_at_a = [k for k, v in current_plan.items() if v == code_a]
+                id_at_b = [k for k, v in current_plan.items() if v == code_b]
+                
+                if id_at_a: current_plan[id_at_a[0]] = code_b
+                if id_at_b: current_plan[id_at_b[0]] = code_a
+                
+                save_setting(setting_key, json.dumps(current_plan))
+                st.toast("Đã đổi chỗ thành công!", icon="✅")
+                # Xóa vùng nhớ chọn dòng để reset bảng về như cũ
+                st.session_state['table_swap_manual_v1']['selection']['rows'] = []
+                st.rerun()
 
     # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI HIỂN THỊ)
     import base64
