@@ -1501,7 +1501,7 @@ def show_admin_page():
                         st.error("Vui lòng nhập đủ các trường bắt buộc (*).")
 
     # ==========================================
-    # TAB 2: QUẢN LÝ DANH MỤC SỰ KIỆN (BẤM ĐỂ SỬA TRỰC TIẾP)
+    # TAB 2: QUẢN LÝ DANH MỤC SỰ KIỆN (BẢN CHUẨN - CHỐNG LỖI TYPE ERROR)
     # ==========================================
     with tab_events:
         st.info("Quản lý danh mục các lỗi vi phạm và thành tích khen thưởng để áp dụng toàn trường.")
@@ -1552,44 +1552,36 @@ def show_admin_page():
 
         st.markdown("---")
 
-        # --- 2. KHU VỰC DANH SÁCH & FORM SỬA TRỰC TIẾP ---
+        # --- 2. KHU VỰC DANH SÁCH & FORM CHỌN ĐỂ SỬA ---
         col_elist, col_eform = st.columns([1.5, 1], gap="large")
         
-        # Bảng dữ liệu tương tác
         events = lay_tat_ca_danh_muc_su_kien_db()
         df_events = pd.DataFrame(events, columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ"]) if events else pd.DataFrame(columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ"])
         
         with col_elist:
             st.subheader("📋 Danh sách Sự kiện")
-            st.write("👇 **Bấm vào 1 dòng để SỬA, hoặc tick ô [x] để XÓA:**")
+            st.write("👇 **Tick ô [x] và bấm nút dưới cùng để XÓA:**")
             
             if not df_events.empty:
                 df_events.insert(0, "Chọn xóa", False)
-                editor_key = "editor_events_v5"
                 
-                # Bảng tương tác: Vừa cho phép Tick xóa, vừa cho phép Click để chọn
+                # Bảng thuần túy dùng để hiển thị và tick XÓA (Đã gỡ bỏ tính năng Click gây lỗi)
                 edited_ev_df = st.data_editor(
                     df_events,
                     hide_index=True,
-                    column_config={
-                        "Chọn xóa": st.column_config.CheckboxColumn(required=True),
-                        "ID": None # Ẩn ID cho đẹp
-                    },
-                    disabled=["Tên Sự kiện", "Loại", "Điểm", "Mức độ"], # Khóa chữ
+                    column_config={"Chọn xóa": st.column_config.CheckboxColumn(required=True), "ID": None},
+                    disabled=["Tên Sự kiện", "Loại", "Điểm", "Mức độ"], 
                     use_container_width=True,
                     height=450,
-                    selection_mode="single-row", # Bật tính năng Click chọn dòng
-                    on_select="rerun",           # Bấm vào là tải lại form bên cạnh ngay
-                    key=editor_key
+                    key="editor_events_v6"
                 )
                 
-                # Tính năng Xóa
                 selected_ev_rows = edited_ev_df[edited_ev_df["Chọn xóa"] == True]
                 ids_to_del_ev = selected_ev_rows["ID"].tolist()
                 
                 if len(ids_to_del_ev) > 0:
                     st.warning(f"Bạn đang chọn xóa {len(ids_to_del_ev)} sự kiện.")
-                    if st.button("🗑️ Xác nhận Xóa", type="primary", key="btn_del_events_v5"):
+                    if st.button("🗑️ Xác nhận Xóa", type="primary", key="btn_del_events_v6"):
                         del_ev_count = xoa_nhieu_danh_muc_su_kien_db(ids_to_del_ev)
                         st.success(f"Đã xóa thành công {del_ev_count} sự kiện.")
                         st.rerun()
@@ -1599,31 +1591,39 @@ def show_admin_page():
         with col_eform:
             st.subheader("📝 Thêm / Sửa Sự kiện")
             
-            # --- Nhận diện: Đang chọn dòng nào để Sửa? ---
+            # --- TÍNH NĂNG MỚI: CHỌN CHẾ ĐỘ THÊM HOẶC SỬA ---
+            edit_mode = st.radio("Chế độ:", ["➕ Thêm Mới", "✏️ Sửa Sự kiện đã có"], horizontal=True)
+            
             selected_id = None
             def_name, def_type, def_points, def_level = "", "Vi phạm", 0, "Không xét KL"
             
-            # Nếu người dùng có click vào 1 dòng trong bảng
-            if 'editor_events_v5' in st.session_state and len(st.session_state['editor_events_v5']["selection"]["rows"]) > 0:
-                selected_idx = st.session_state['editor_events_v5']["selection"]["rows"][0]
-                row_data = df_events.iloc[selected_idx] # Lấy dữ liệu của dòng đó
-                
-                selected_id = int(row_data["ID"])
-                def_name = str(row_data["Tên Sự kiện"])
-                def_type = str(row_data["Loại"])
-                def_points = int(row_data["Điểm"])
-                
-                md = row_data["Mức độ"]
-                if pd.notna(md) and str(md).strip() != "None" and str(md).strip() != "":
-                    def_level = str(int(md))
+            if edit_mode == "✏️ Sửa Sự kiện đã có":
+                if not events:
+                    st.warning("Chưa có sự kiện nào để sửa.")
+                else:
+                    # Tạo danh sách tên sự kiện để thầy chọn
+                    event_names = [ev[1] for ev in events]
+                    selected_ev_name = st.selectbox("👇 Chọn sự kiện cần sửa:", event_names)
                     
-                st.success(f"✏️ Đang sửa: **{def_name}**")
-            else:
-                st.info("✨ Nhập thông tin bên dưới để Thêm mới.")
+                    # Lấy dữ liệu của sự kiện được chọn để điền vào Form
+                    for ev in events:
+                        if ev[1] == selected_ev_name:
+                            selected_id = ev[0]
+                            def_name = ev[1]
+                            def_type = ev[2]
+                            def_points = ev[3]
+                            md = ev[4]
+                            if pd.notna(md) and str(md).strip() != "None" and str(md).strip() != "":
+                                def_level = str(int(md))
+                            break
 
-            # --- Form nhập liệu tự động điền giá trị ---
-            with st.form("form_event_v5"):
-                e_name = st.text_input("Tên sự kiện *", value=def_name)
+            # --- Form nhập liệu tự động ---
+            with st.form("form_event_v6"):
+                # Ô tên sự kiện
+                if edit_mode == "➕ Thêm Mới":
+                    e_name = st.text_input("Tên sự kiện mới *")
+                else:
+                    e_name = st.text_input("Tên sự kiện *", value=def_name) # Cho phép sửa tên
                 
                 type_idx = 0 if def_type == "Vi phạm" else 1
                 e_type = st.selectbox("Loại", ["Vi phạm", "Khen thưởng"], index=type_idx)
@@ -1634,33 +1634,24 @@ def show_admin_page():
                 lvl_idx = lvl_options.index(def_level) if def_level in lvl_options else 0
                 e_level = st.selectbox("Mức độ vi phạm (Theo TT19)", lvl_options, index=lvl_idx)
 
-                # Nút bấm đổi chữ linh hoạt
-                btn_label = "💾 Cập nhật Sự kiện" if selected_id else "➕ Thêm Mới Sự kiện"
+                btn_label = "💾 Cập nhật Sự kiện" if selected_id else "➕ Lưu Sự kiện Mới"
                 
                 if st.form_submit_button(btn_label, type="primary", use_container_width=True):
                     if e_name:
                         muc_do = int(e_level) if e_level != "Không xét KL" and e_type == "Vi phạm" else None
                         
                         if selected_id:
-                            # Nếu đang sửa -> Gọi hàm UPDATE
+                            # CẬP NHẬT
                             if sua_danh_muc_su_kien_db(selected_id, e_name, e_type, e_points, muc_do):
                                 st.toast(f"Đã cập nhật thành công!", icon="✅")
-                                # Xóa trạng thái đang chọn để quay về chế độ Thêm mới
-                                st.session_state['editor_events_v5']["selection"]["rows"] = []
                                 st.rerun()
                         else:
-                            # Nếu đang thêm mới -> Gọi hàm INSERT
+                            # THÊM MỚI
                             if them_hoac_cap_nhat_danh_muc_db(e_name, e_type, e_points, muc_do):
                                 st.toast(f"Đã thêm mới sự kiện!", icon="✅")
                                 st.rerun()
                     else:
                         st.error("Vui lòng nhập tên sự kiện.")
-
-            # Nút Thoát khỏi chế độ sửa
-            if selected_id:
-                if st.button("✖️ Hủy sửa (Quay lại Thêm mới)", use_container_width=True):
-                    st.session_state['editor_events_v5']["selection"]["rows"] = []
-                    st.rerun()
     # TAB 3: CÀI ĐẶT NĂM HỌC & KỲ NGHỈ LỄ
     # ==========================================
     with tab_settings:
