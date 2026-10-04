@@ -2825,16 +2825,16 @@ def show_seating_chart_page():
                     st.rerun()
 
     # ==========================================
-    # TAB: TỰ ĐỔI CHỖ BẰNG TAY (FIX LỖI TYPE ERROR & TỐI ƯU TỐC ĐỘ)
+    # TAB: TỰ ĐỔI CHỖ BẰNG TAY (DÙNG CHECKBOX SIÊU DỄ)
     # ==========================================
     with tab_manual:
-        st.info("💡 **Mẹo siêu nhanh:** Thầy/Cô hãy bấm vào biểu tượng 🔍 ở góc phải của bảng để gõ tìm tên học sinh. Sau đó bấm chọn đúng **2 dòng** để hoán đổi chỗ.")
+        st.info("💡 **Cách làm:** Thầy/Cô tích vào ô vuông [x] của đúng **2 vị trí** trong bảng dưới đây để hoán đổi chỗ.")
         
-        # Khởi tạo khóa động để tự động reset bảng sau khi lưu
+        # Khóa động để tự reset bảng sau khi lưu
         if 'swap_reset_key' not in st.session_state:
             st.session_state.swap_reset_key = 0
 
-        # 1. Tạo danh sách tất cả các ghế và người ngồi hiện tại
+        # 1. Tạo danh sách tất cả các ghế
         seat_list_for_table = []
         for c in range(1, so_day + 1):
             for r in range(1, so_ban + 1):
@@ -2849,7 +2849,9 @@ def show_seating_chart_page():
                             if hs_info: hs_ngoi_day = hs_info['ten_goc']
                             break
                     
+                    # Thêm cột "Chọn" (Checkbox) mặc định là False
                     seat_list_for_table.append({
+                        "Chọn": False,
                         "Vị trí": display_name,
                         "Học sinh đang ngồi": hs_ngoi_day,
                         "Mã Ghế": seat_code # Cột ẩn
@@ -2857,44 +2859,58 @@ def show_seating_chart_page():
                     
         df_seats = pd.DataFrame(seat_list_for_table)
 
-        # 2. Hiển thị Bảng tương tác (Sử dụng Khóa động)
-        selection_swap = st.dataframe(
-            df_seats[["Vị trí", "Học sinh đang ngồi", "Mã Ghế"]],
+        # 2. Hiển thị Bảng tương tác (Có ô vuông Tick)
+        edited_swap_df = st.data_editor(
+            df_seats,
             hide_index=True,
             use_container_width=True,
-            height=300,
+            height=400,
             column_config={
-                "Mã Ghế": None, # Ẩn mã ghế đi cho đẹp
-                "Vị trí": st.column_config.TextColumn(width="medium"),
-                "Học sinh đang ngồi": st.column_config.TextColumn(width="large")
+                "Chọn": st.column_config.CheckboxColumn("Tick (2 ô)", required=True, width="small"),
+                "Mã Ghế": None, # Ẩn mã ghế
+                "Vị trí": st.column_config.TextColumn(disabled=True, width="medium"),
+                "Học sinh đang ngồi": st.column_config.TextColumn(disabled=True, width="large")
             },
-            selection_mode="multi-row", # Bật tính năng chọn nhiều
-            on_select="rerun",
-            key=f"table_swap_manual_v2_{st.session_state.swap_reset_key}" # <<< KHÓA ĐỘNG Ở ĐÂY
+            disabled=["Vị trí", "Học sinh đang ngồi", "Mã Ghế"], # Khóa chữ, chỉ cho phép tick
+            key=f"table_swap_manual_v3_{st.session_state.swap_reset_key}" # Khóa động
         )
 
-        # 3. Lấy ra các dòng thầy vừa bấm chọn
-        selected_rows = selection_swap.selection.rows
+        # 3. Lọc ra các dòng đã được Tick [x]
+        selected_rows = edited_swap_df[edited_swap_df["Chọn"] == True]
         
-        # 4. Logic xử lý: Chỉ hiện nút Đổi khi chọn ĐÚNG 2 DÒNG
+        # 4. Logic hiển thị nút bấm thông minh
+        st.markdown("---")
         if len(selected_rows) == 0:
-            st.write("👈 Vui lòng bấm chọn 2 vị trí ở bảng trên.")
+            st.write("👈 Đang chờ Thầy/Cô tick chọn...")
         elif len(selected_rows) == 1:
-            st.warning("👉 Thầy/Cô đã chọn 1 vị trí. Vui lòng bấm chọn thêm 1 vị trí nữa để đổi.")
+            st.warning(f"👉 Thầy/Cô đã chọn **{selected_rows.iloc[0]['Học sinh đang ngồi']}**. Vui lòng tick chọn thêm 1 người nữa để đổi.")
         elif len(selected_rows) > 2:
-            st.error("⚠️ Thầy/Cô đang chọn quá 2 vị trí. Vui lòng bấm vào dòng thừa để bỏ chọn bớt.")
+            st.error("⚠️ Thầy/Cô đang tick quá 2 vị trí! Vui lòng bỏ tick bớt để hệ thống biết đổi ai cho ai.")
         elif len(selected_rows) == 2:
-            # Lấy thông tin 2 ghế đã chọn
-            idx_a, idx_b = selected_rows[0], selected_rows[1]
-            seat_a = df_seats.iloc[idx_a]
-            seat_b = df_seats.iloc[idx_b]
+            # Lấy thông tin 2 ghế đã tick
+            code_a, hs_a = selected_rows.iloc[0]["Mã Ghế"], selected_rows.iloc[0]["Học sinh đang ngồi"]
+            code_b, hs_b = selected_rows.iloc[1]["Mã Ghế"], selected_rows.iloc[1]["Học sinh đang ngồi"]
             
-            code_a, hs_a = seat_a["Mã Ghế"], seat_a["Học sinh đang ngồi"]
-            code_b, hs_b = seat_b["Mã Ghế"], seat_b["Học sinh đang ngồi"]
+            st.success(f"🔄 Hệ thống chuẩn bị hoán đổi: **{hs_a}**  ↔️  **{hs_b}**")
             
-            st.success(f"🔄 Sắp hoán đổi: **{hs_a}** ↔️ **{hs_b}**")
-            
-            # Nút Xác nhận Đổi Chỗ
+            # Nút Xác nhận Đổi Chỗ hiện ra
+            col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+            with col_btn2:
+                if st.button("🚀 XÁC NHẬN ĐỔI CHỖ", type="primary", use_container_width=True):
+                    with st.spinner("Đang hoán đổi vị trí..."):
+                        id_at_a = [k for k, v in current_plan.items() if v == code_a]
+                        id_at_b = [k for k, v in current_plan.items() if v == code_b]
+                        
+                        # Thực hiện tráo đổi
+                        if id_at_a: current_plan[id_at_a[0]] = code_b
+                        if id_at_b: current_plan[id_at_b[0]] = code_a
+                        
+                        save_setting(setting_key, json.dumps(current_plan))
+                        st.toast("Đã đổi chỗ thành công!", icon="✅")
+                        
+                        # Ép làm mới bảng để xóa tick
+                        st.session_state.swap_reset_key += 1
+                        st.rerun()
 
     # 4. VẼ HTML SƠ ĐỒ LỚP (BẢN ÉP DÒNG CHỐNG LỖI HIỂN THỊ)
     import base64
