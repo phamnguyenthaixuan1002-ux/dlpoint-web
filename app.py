@@ -469,7 +469,7 @@ def show_class_management():
                             st.write(f"**💬 Nhận xét:** {ph if ph else 'Không có'}")
                 else:
                     st.info("Chưa có lịch sử nhận xét nào được lưu.")
-# --- HÀM 8: GHI NHẬN NHANH (BẢN TỐI ƯU HIỂN THỊ CỘT BẢNG) ---
+# --- HÀM 8: GHI NHẬN NHANH (BẢN TỐI ƯU CÓ HIỂN THỊ CỘT ĐIỂM) ---
 def show_quick_record_page():
     st.header("📝 Ghi nhận Điểm Cộng / Trừ Nhanh")
     st.markdown("---")
@@ -496,16 +496,19 @@ def show_quick_record_page():
         st.warning(f"Lớp {aclass} hiện chưa có học sinh nào.")
         return
 
+    # TÁCH LÀM 2 DANH SÁCH RIÊNG BIỆT VÀ THÊM CỘT ĐIỂM HIỂN THỊ
     all_events = get_cached_events()
     vp_list_for_table = []
     kt_list_for_table = []
     
     for ev in all_events:
         ten, loai, diem = ev[1], ev[2], ev[3]
+        diem_str = f"+{diem}" if diem > 0 else f"{diem}" # Định dạng chữ hiển thị
+        
         if loai == "Vi phạm":
-            vp_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
+            vp_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm": diem_str, "Điểm gốc": diem, "Loại gốc": loai})
         else:
-            kt_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm gốc": diem, "Loại gốc": loai})
+            kt_list_for_table.append({"Số lần": 0, "Tên Sự Kiện": ten, "Điểm": diem_str, "Điểm gốc": diem, "Loại gốc": loai})
 
     event_date = st.date_input("📅 Chọn Ngày ghi nhận:", format="DD/MM/YYYY", key="date_quick_unified")
     ngay_tao_str = event_date.strftime('%Y-%m-%d %H:%M:%S')
@@ -516,8 +519,7 @@ def show_quick_record_page():
 
     st.info("💡 **Cách dùng:** (1) Tick chọn Học sinh bên trái. (2) Tăng 'Số lần' ở các Lỗi/Khen bên phải. (3) Bấm Ghi nhận.")
 
-    # <<< SỬA ĐỔI TỶ LỆ CỘT Ở ĐÂY (Nới rộng cột HS ra thêm 20%) >>>
-    col_hs, col_ev = st.columns([1.2, 1.8], gap="medium")
+    col_hs, col_ev = st.columns([1.2, 1.8], gap="large")
 
     # ==========================================
     # CỘT TRÁI: CHỌN HỌC SINH (BẢNG CHECKBOX)
@@ -534,7 +536,6 @@ def show_quick_record_page():
             df_hs[["Chọn", "STT", "Họ Tên", "Tổ", "ID"]],
             hide_index=True,
             column_config={
-                # Đổi tên cột thành biểu tượng và ép cứng kích thước nhỏ nhất
                 "Chọn": st.column_config.CheckboxColumn("☑️", required=True, width="small"), 
                 "STT": st.column_config.NumberColumn("STT", disabled=True, width="small"), 
                 "Họ Tên": st.column_config.TextColumn("Họ và Tên", disabled=True), 
@@ -567,9 +568,10 @@ def show_quick_record_page():
                 column_config={
                     "Số lần": st.column_config.NumberColumn("Lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
                     "Tên Sự Kiện": st.column_config.TextColumn("Tên lỗi", disabled=True),
+                    "Điểm": st.column_config.TextColumn("Điểm", disabled=True, width="small"), # Cột hiển thị điểm
                     "Điểm gốc": None, "Loại gốc": None  
                 },
-                disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
+                disabled=["Tên Sự Kiện", "Điểm", "Điểm gốc", "Loại gốc"], 
                 use_container_width=True, height=410, key=key_vp
             )
             
@@ -581,9 +583,10 @@ def show_quick_record_page():
                 column_config={
                     "Số lần": st.column_config.NumberColumn("Lần", min_value=0, max_value=50, step=1, format="%d", width="small"),
                     "Tên Sự Kiện": st.column_config.TextColumn("Tên khen thưởng", disabled=True),
+                    "Điểm": st.column_config.TextColumn("Điểm", disabled=True, width="small"), # Cột hiển thị điểm
                     "Điểm gốc": None, "Loại gốc": None  
                 },
-                disabled=["Tên Sự Kiện", "Điểm gốc", "Loại gốc"], 
+                disabled=["Tên Sự Kiện", "Điểm", "Điểm gốc", "Loại gốc"], 
                 use_container_width=True, height=410, key=key_kt
             )
         
