@@ -220,13 +220,25 @@ def show_login_page():
                         nguoi_gui = st.text_input("Họ tên của em (Tùy chọn):", placeholder="Nhập tên của em vào đây...")
                     loai_thu = st.selectbox("Phân loại tin nhắn:", ["Báo cáo Khẩn cấp (Bạo lực, SOS...)", "Tư vấn tâm lý", "Góp ý xây dựng lớp"])
                 
-                classes, _ = get_distinct_classes_and_groups_db()
-                lop_lien_quan = st.selectbox("Gửi đến GVCN Lớp nào? *", ["-- Chọn lớp --"] + classes)
-                noi_dung = st.text_area("Nội dung chi tiết *", placeholder="Nhập nội dung vào đây. Nếu phản ánh học sinh cụ thể, vui lòng ghi rõ họ tên học sinh...", height=150)
+                # ==========================================
+                # TỐI ƯU HÓA: TỰ ĐỘNG NHẬN DIỆN LỚP QUA MÃ QR
+                # ==========================================
+                # Kiểm tra xem đường link có chứa tham số "class" không (Ví dụ: ?page=sos&class=8A4)
+                target_class = st.query_params.get("class")
                 
-                # Đổi st.form_submit_button thành st.button bình thường
+                if target_class:
+                    # Nếu quét QR riêng của lớp -> Khóa cứng lớp đó, bỏ qua tải CSDL giúp web load nhanh trong 0.1s
+                    st.info(f"📍 Đang gửi tin nhắn trực tiếp cho GVCN lớp: **{target_class}**")
+                    lop_lien_quan = target_class
+                else:
+                    # Nếu dùng link chung toàn trường -> Vẫn tải danh sách cho chọn bình thường
+                    classes, _ = get_distinct_classes_and_groups_db()
+                    lop_lien_quan = st.selectbox("Gửi đến GVCN Lớp nào? *", ["-- Chọn lớp --"] + classes)
+                
+                noi_dung = st.text_area("Nội dung chi tiết *", placeholder="Nhập nội dung vào đây. Nếu phản ánh học sinh cụ thể, vui lòng ghi rõ họ tên...", height=150)
+                
                 if st.button("📤 Gửi Tin Nhắn", type="primary", use_container_width=True):
-                    if lop_lien_quan == "-- Chọn lớp --" or not noi_dung:
+                    if not lop_lien_quan or lop_lien_quan == "-- Chọn lớp --" or not noi_dung:
                         st.error("Vui lòng chọn Lớp và nhập Nội dung.")
                     elif loai_nguoi_gui == "Giáo viên bộ môn" and not nguoi_gui:
                         st.error("Vui lòng nhập Họ tên và Môn dạy của thầy/cô.")
@@ -3016,44 +3028,52 @@ def show_inbox_page():
             
             st.write("<br>", unsafe_allow_html=True)
 # =======================================================
-    # KHU VỰC TẠO VÀ IN MÃ QR CHO HÒM THƯ
+    # KHU VỰC TẠO VÀ IN MÃ QR CHO HÒM THƯ (BẢN NÂNG CẤP CHỌN LỚP)
     # =======================================================
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    with st.expander("🖨️ TẠO VÀ TẢI MÃ QR HÒM THƯ GÓP Ý (Để dán tại lớp/hành lang)", expanded=False):
+    with st.expander("🖨️ TẠO VÀ TẢI MÃ QR HÒM THƯ GÓP Ý", expanded=False):
         import qrcode
         import io
         
-        st.write("Thầy/Cô hãy copy đường link gốc của phần mềm (Ví dụ: *https://dlpoint-thayxuan.streamlit.app*) và dán vào ô bên dưới:")
+        st.write("Thầy/Cô hãy copy đường link gốc của phần mềm (Ví dụ: *https://dlpoint.streamlit.app*) và dán vào ô bên dưới:")
         app_url = st.text_input("Đường link App của trường:", value="", placeholder="https://...")
+        
+        # <<< ĐIỂM MỚI: CHỌN LỚP ĐỂ TẠO MÃ QR RIÊNG >>>
+        classes_for_qr, _ = get_distinct_classes_and_groups_db()
+        qr_class_selection = st.selectbox("Tạo mã QR cho:", ["Dùng chung toàn trường (Phải tự chọn lớp)"] + classes_for_qr)
         
         if app_url and app_url.startswith("http"):
             # Tự động tạo link đi tắt
-            sos_url = f"{app_url.rstrip('/')}/?page=sos"
-            st.info(f"🔗 Link quét QR sẽ dẫn thẳng tới: **{sos_url}**")
+            if qr_class_selection == "Dùng chung toàn trường (Phải tự chọn lớp)":
+                sos_url = f"{app_url.rstrip('/')}/?page=sos"
+                st.info(f"🔗 Link QR chung: **{sos_url}**")
+            else:
+                # Ép tên lớp vào cuối đường link
+                sos_url = f"{app_url.rstrip('/')}/?page=sos&class={qr_class_selection}"
+                st.success(f"🔗 Link QR riêng cho lớp {qr_class_selection}: **{sos_url}**")
             
             # Khởi tạo mã QR
             qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
             qr.add_data(sos_url)
             qr.make(fit=True)
             
-            # Tạo ảnh QR
             img_qr = qr.make_image(fill_color="black", back_color="white")
             buf = io.BytesIO()
             img_qr.save(buf, format="PNG")
             
             col_qr1, col_qr2 = st.columns([1, 2])
             with col_qr1:
-                st.image(buf.getvalue(), width=200, caption="Quét thử bằng Zalo/Camera")
+                st.image(buf.getvalue(), width=200, caption=f"QR Code {qr_class_selection}")
             with col_qr2:
-                st.write("**Hướng dẫn sử dụng:**")
-                st.write("1. Bấm nút tải ảnh Mã QR bên dưới về máy tính.")
-                st.write("2. Mở file Word, chèn ảnh Mã QR này vào, gõ thêm dòng chữ thật to: **'QUÉT MÃ ĐỂ GỬI GÓP Ý / BÁO CÁO KHẨN CẤP ĐẾN GVCN'**.")
-                st.write("3. In ra giấy và dán lên bảng tin của lớp học.")
+                st.write("**Hướng dẫn in:**")
+                st.write("1. Tải ảnh Mã QR bên dưới về máy tính.")
+                st.write(f"2. In ra và dán tại cửa lớp **{qr_class_selection}**.")
+                st.write("3. Học sinh quét mã này sẽ được vào thẳng form của lớp mà không cần phải chờ load danh sách chọn lớp nữa.")
                 
                 st.download_button(
-                    label="📥 Tải Ảnh Mã QR Về Máy",
+                    label=f"📥 Tải Ảnh Mã QR ({qr_class_selection})",
                     data=buf.getvalue(),
-                    file_name="Ma_QR_HomThu_SOS.png",
+                    file_name=f"Ma_QR_SOS_{qr_class_selection}.png",
                     mime="image/png",
                     type="primary"
                 )
