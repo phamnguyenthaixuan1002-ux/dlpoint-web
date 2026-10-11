@@ -372,6 +372,7 @@ def show_class_management():
                 else:
                     st.info("Chưa có dữ liệu rèn luyện.")
 
+            # === TAB LỊCH SỬ (ĐÃ FIX LỖI ID ĐỂ XÓA CHUẨN XÁC) ===
             with tab_lich_su:
                 st.write("**1. Lịch sử Kỷ luật (Theo TT19)**")
                 history_kl = lay_lich_su_ky_luat_cua_hoc_sinh_db(hs_id)
@@ -384,15 +385,21 @@ def show_class_management():
                 st.markdown("---")
                 st.write("**2. Chi tiết Sự kiện (+/- điểm)**")
                 
-                if hs_events:
-                    df_events = pd.DataFrame(hs_events, columns=["ID", "Tên", "Lớp", "Tổ", "Nội dung", "Loại", "Điểm", "Ngày"])
+                # <<< GIẢI PHÁP: GỌI HÀM LẤY CHÍNH XÁC ID SỰ KIỆN >>>
+                from database import lay_su_kien_ren_luyen_cua_hoc_sinh_db
+                real_hs_events = lay_su_kien_ren_luyen_cua_hoc_sinh_db(hs_id)
+                
+                if real_hs_events:
+                    # Dữ liệu trả về chuẩn: (id_su_kien, mo_ta, loai, diem, ngay)
+                    df_events = pd.DataFrame(real_hs_events, columns=["ID", "Nội dung", "Loại", "Điểm", "Ngày"])
                     df_events['Ngày'] = pd.to_datetime(df_events['Ngày']).dt.strftime('%d/%m/%Y %H:%M')
+                    
                     df_events.insert(0, "Chọn xóa", False)
                     
                     st.info("💡 Nếu ghi nhận nhầm, đánh dấu tick [x] vào sự kiện ở bảng dưới và bấm nút Xóa.")
                     
                     edited_ev_df = st.data_editor(
-                        df_events[["Chọn xóa", "Ngày", "Nội dung", "Loại", "Điểm", "ID"]].sort_values("Ngày", ascending=False),
+                        df_events[["Chọn xóa", "Ngày", "Nội dung", "Loại", "Điểm", "ID"]],
                         hide_index=True,
                         column_config={"Chọn xóa": st.column_config.CheckboxColumn("Xóa", required=True), "ID": None},
                         disabled=["Ngày", "Nội dung", "Loại", "Điểm", "ID"],
@@ -408,7 +415,10 @@ def show_class_management():
                             count_del = 0
                             with st.spinner("Đang xóa dữ liệu..."):
                                 for ev_id in ids_to_del:
-                                    if xoa_su_kien_ren_luyen_db(ev_id): count_del += 1
+                                    # Đảm bảo truyền đúng ID sự kiện dạng số vào hàm xóa
+                                    if xoa_su_kien_ren_luyen_db(int(ev_id)): 
+                                        count_del += 1
+                                        
                             if count_del > 0:
                                 st.toast(f"Đã gỡ bỏ thành công {count_del} sự kiện!", icon="✅")
                                 st.session_state['del_key'] = st.session_state.get('del_key', 0) + 1
