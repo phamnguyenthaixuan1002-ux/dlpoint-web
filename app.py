@@ -1249,8 +1249,13 @@ def show_summary_page():
                 # ==========================================
                 # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN / BÁO CÁO
                 # ==========================================
-                # 1. TRỢ LÝ CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
+                # ==========================================
+                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN & CỐ VẤN CHIẾN LƯỢC
+                # ==========================================
+                # 1. TRỢ LÝ DÀNH CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
                 if user['role'] in ['gvcn', 'admin']:
+                    
+                    # --- Trợ lý 1: Soạn tin nhắn Zalo ---
                     with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
                         st.info("Hệ thống tự động quét dữ liệu và soạn sẵn tin nhắn. Thầy/Cô có thể copy dán vào nhóm Zalo lớp.")
                         
@@ -1268,6 +1273,70 @@ def show_summary_page():
                         msg_zalo += "📌 Chi tiết quý vị xem trong file Excel đính kèm. Trân trọng!"
                         
                         st.text_area("Văn bản tin nhắn (Có thể chỉnh sửa):", value=msg_zalo, height=200, key="txt_zalo_gv")
+
+                    # --- Trợ lý 2: Cố vấn Chiến lược Sư phạm (TÍNH NĂNG MỚI) ---
+                    with st.expander("🤖 AI Phân tích & Gợi ý Kế hoạch Tuần tới (Dành riêng cho GVCN)"):
+                        st.info("Trợ lý AI sẽ đọc các số liệu rèn luyện trong tuần và đưa ra các đánh giá sư phạm, giúp Thầy/Cô lên kế hoạch quản lý lớp hiệu quả nhất.")
+                        
+                        if st.button("✨ Nhờ AI Phân tích Tuần này", type="secondary", width="stretch", key="btn_ai_tuan"):
+                            if "GEMINI_API_KEY" not in st.secrets:
+                                st.error("Chưa cấu hình API Key của Google Gemini trong Streamlit Secrets!")
+                            else:
+                                with st.spinner("🤖 AI đang tổng hợp dữ liệu và suy nghĩ chiến lược..."):
+                                    try:
+                                        from google import genai
+                                        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                                        
+                                        # Chuẩn bị dữ liệu thô cho AI đọc
+                                        so_hs = len(student_list)
+                                        so_khen = sum(1 for ev in all_events if ev[5] == 'Khen thưởng')
+                                        so_phat = sum(1 for ev in all_events if ev[5] == 'Vi phạm')
+                                        
+                                        loi_list = list(set([ev[4] for ev in all_events if ev[5] == 'Vi phạm']))
+                                        khen_list = list(set([ev[4] for ev in all_events if ev[5] == 'Khen thưởng']))
+                                        
+                                        top_loi_str = ", ".join(loi_list) if loi_list else "Không có lỗi vi phạm"
+                                        top_khen_str = ", ".join(khen_list) if khen_list else "Chưa có hoạt động nổi bật"
+                                        
+                                        top_hs_tot = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
+                                        top_hs_kem = [hs['ten'] for hs in student_list[-5:] if hs['diem'] < DIEM_KHOI_DAU]
+                                        
+                                        # Ra lệnh cho AI theo đúng sườn 4 phần
+                                        prompt = f"""
+                                        Đóng vai là một chuyên gia tâm lý học đường và cố vấn giáo dục. 
+                                        Dưới đây là số liệu rèn luyện tuần {week_num} của lớp học có {so_hs} học sinh:
+                                        - Số lượt khen thưởng: {so_khen} lượt (Gồm: {top_khen_str})
+                                        - Số lượt vi phạm: {so_phat} lượt (Gồm: {top_loi_str})
+                                        - Học sinh biểu hiện xuất sắc: {', '.join(top_hs_tot) if top_hs_tot else 'Không có'}
+                                        - Học sinh có dấu hiệu sa sút cần chú ý: {', '.join(top_hs_kem) if top_hs_kem else 'Không có'}
+                                        
+                                        Hãy viết một bản phân tích gửi cho Giáo viên chủ nhiệm (GVCN) với bố cục RÕ RÀNG 4 phần sau (Dùng icon sinh động):
+                                        1. 🌟 Điểm sáng: Phân tích những ưu điểm, tiến bộ của lớp trong tuần.
+                                        2. ⚠️ Hạn chế / Tồn tại: Chỉ ra những vấn đề nề nếp cần khắc phục dựa trên các lỗi vi phạm.
+                                        3. 💡 Đề xuất cải thiện: Đưa ra các giải pháp sư phạm, tâm lý khéo léo để khắc phục hạn chế.
+                                        4. 🎯 Việc cần thực hiện ưu tiên tuần tiếp theo: Liệt kê 2-3 hành động cụ thể, thiết thực nhất mà GVCN cần làm ngay.
+                                        
+                                        Yêu cầu: Văn phong chuyên nghiệp, sắc bén, thấu hiểu tâm lý tuổi học trò. Trình bày dạng Markdown dễ đọc.
+                                        """
+                                        
+                                        # Dùng model 1.5-flash để đảm bảo chạy mượt, không bị lỗi nghẽn mạng 503
+                                        response = client.models.generate_content(
+                                            model='gemini-1.5-flash',
+                                            contents=prompt
+                                        )
+                                        
+                                        st.success("✅ Trợ lý AI đã phân tích xong!")
+                                        st.markdown(f"""
+                                        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; border-left: 5px solid #8e44ad; font-size: 1.05em; line-height: 1.6; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);'>
+                                            {response.text}
+                                        </div>
+                                        <br>
+                                        """, unsafe_allow_html=True)
+                                        
+                                    except Exception as e:
+                                        st.error(f"Lỗi khi gọi AI: {e}")
+
+                # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
 
                 # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
                 elif user['role'] == 'bcs':
