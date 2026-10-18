@@ -1072,11 +1072,23 @@ def show_statistics_page():
                             Văn phong: Chuyên nghiệp, tôn trọng, mang tính tư vấn, xưng là "Trợ lý AI DLPOINT".
                             """
 
-                            # Gọi AI sinh kết quả
-                            response = client.models.generate_content(
-                                model='gemini-3.6-flash',  # <<< Đổi sang bản 1.5-flash siêu tốc
-                                contents=prompt
-                            )
+                            # Tích hợp cơ chế "Tự động đổi làn" khi Google bị kẹt xe (Lỗi 503)
+                                        try:
+                                            response = client.models.generate_content(
+                                                model='gemini-3.6-flash',
+                                                contents=prompt
+                                            )
+                                        except Exception as e_khi_goi:
+                                            if "503" in str(e_khi_goi) or "UNAVAILABLE" in str(e_khi_goi) or "429" in str(e_khi_goi):
+                                                # Báo hiệu nhỏ góc màn hình là đang đổi làn
+                                                st.toast("Đường truyền Flash đang kẹt, tự động đổi sang kênh Pro...", icon="🔄")
+                                                # Gọi lại bằng mô hình dự phòng ổn định hơn
+                                                response = client.models.generate_content(
+                                                    model='gemini-pro',
+                                                    contents=prompt
+                                                )
+                                            else:
+                                                raise e_khi_goi # Nếu là lỗi khác thì mới báo đỏ
 
                             st.success("✅ Trợ lý AI đã phân tích xong!")
                             
