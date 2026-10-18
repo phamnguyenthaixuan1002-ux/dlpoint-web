@@ -1074,7 +1074,7 @@ def show_statistics_page():
 
                             # Gọi AI sinh kết quả
                             response = client.models.generate_content(
-                                model='gemini-1.5-flash',  # <<< Đổi sang bản 1.5-flash siêu tốc
+                                model='gemini-3.6-flash',  # <<< Đổi sang bản 1.5-flash siêu tốc
                                 contents=prompt
                             )
 
