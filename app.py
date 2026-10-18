@@ -1104,7 +1104,7 @@ def show_statistics_page():
                             st.error(f"Lỗi khi gọi AI: {e}")
             df_vipham['Ngày'] = df_vipham['Ngày'].dt.strftime('%d/%m/%Y %H:%M')
             st.dataframe(df_vipham[['Ngày', 'Họ Tên', 'Lớp', 'Tổ', 'Lỗi', 'Điểm']], width="stretch", hide_index=True)
-# --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (NÂNG CẤP FULL GIAO DIỆN) ---
+# --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (FULL HOÀN CHỈNH - CHỐNG LỖI THỤT LỀ) ---
 def show_summary_page():
     st.header("📑 Báo cáo Tổng kết Toàn diện")
     st.markdown("---")
@@ -1160,13 +1160,11 @@ def show_summary_page():
                 # --- 1. HIỂN THỊ BẢNG XẾP HẠNG TỔ ---
                 st.markdown("#### 🏆 Xếp hạng Thi đua Tổ")
                 if not df_tuan.empty and 'to' in df_tuan.columns:
-                    # Tính điểm trung bình theo tổ
                     df_team = df_tuan[df_tuan['to'] != ""].groupby('to')['diem'].mean().reset_index()
                     df_team.rename(columns={'to': 'Tên Tổ', 'diem': 'Điểm Trung Bình'}, inplace=True)
                     df_team.sort_values(by='Điểm Trung Bình', ascending=False, inplace=True)
                     df_team.insert(0, 'Hạng', range(1, len(df_team) + 1))
                     
-                    # Vẽ bảng ngang siêu đẹp
                     cols_team = st.columns(len(df_team) if len(df_team) > 0 else 1)
                     for i, (_, row) in enumerate(df_team.iterrows()):
                         with cols_team[i]:
@@ -1177,30 +1175,27 @@ def show_summary_page():
                                         f"<h2 style='color:#0078D7; margin:0;'>{row['Điểm Trung Bình']:.1f}</h2>"
                                         f"</div>", unsafe_allow_html=True)
                 
-                st.write("") # Cắt dòng
+                st.write("") 
                 
-                # Chia 2 cột cho Vi phạm và Danh sách tổng
                 col_vipham, col_tong = st.columns([1, 1.5], gap="large")
 
-                # --- 2. CHI TIẾT LỖI VI PHẠM (BÊN TRÁI) ---
+                # --- 2. CHI TIẾT LỖI VI PHẠM ---
                 with col_vipham:
                     st.markdown("#### ⚠️ Tổng hợp Vi phạm")
                     vipham_list = [{"Họ Tên": ev[1], "Tổ": ev[3] or "", "Lỗi Vi Phạm": ev[4]} for ev in all_events if ev[5] == "Vi phạm"]
                     
                     if vipham_list:
                         df_vp = pd.DataFrame(vipham_list)
-                        # Đếm số lần vi phạm của mỗi HS cho từng lỗi
                         df_vp_grouped = df_vp.groupby(['Họ Tên', 'Tổ', 'Lỗi Vi Phạm']).size().reset_index(name='Số lần')
                         df_vp_grouped = df_vp_grouped.sort_values(by=['Tổ', 'Họ Tên'])
                         st.dataframe(df_vp_grouped, width="stretch", hide_index=True)
                     else:
                         st.success("Tuyệt vời! Tuần này không có học sinh nào vi phạm nội quy.")
 
-                # --- 3. BẢNG TỔNG KẾT ĐIỂM (BÊN PHẢI) ---
+                # --- 3. BẢNG TỔNG KẾT ĐIỂM ---
                 with col_tong:
                     st.markdown("#### 📋 Bảng Điểm & Xếp loại Lớp")
                     if not df_tuan.empty:
-                        # Dùng data_editor để hiển thị đẹp hơn
                         st.dataframe(
                             df_tuan[['STT', 'ten', 'to', 'diem', 'xeploai']].rename(columns={'ten': 'Họ và Tên', 'to': 'Tổ', 'diem': 'Tổng điểm', 'xeploai': 'Xếp loại'}),
                             width="stretch", 
@@ -1208,42 +1203,31 @@ def show_summary_page():
                             height=400
                         )
 
-                # --- 4. TẢI FILE EXCEL & ZALO ---
+                # --- 4. TẢI FILE EXCEL & ZALO & AI ---
                 st.markdown("---")
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # ==========================================
-                # LỌC DỮ LIỆU ĐỂ BƠM VÀO FILE EXCEL CHI TIẾT
-                # ==========================================
                 student_id_to_name = {hs[0]: hs[1] for hs in all_students}
-                
-                # 1. Lọc điểm cộng
                 positive_points = {}
                 for ev in all_events:
                     if ev[5] == "Khen thưởng" and ev[6] > 0:
                         positive_points[ev[0]] = positive_points.get(ev[0], 0) + ev[6]
                 pos_list = sorted([(student_id_to_name.get(sid, ""), pts) for sid, pts in positive_points.items()], key=lambda x: x[1], reverse=True)
-                
-                # 2. Lọc danh sách chưa có điểm cộng
                 zero_list = sorted([name for sid, name in student_id_to_name.items() if sid not in positive_points])
                 
-                # 3. Tổng hợp vi phạm
                 vio_summary = {}
                 for ev in all_events:
                     if ev[5] == "Vi phạm":
-                        key = (ev[0], ev[4]) # Gom nhóm theo ID và Tên lỗi
+                        key = (ev[0], ev[4]) 
                         if key not in vio_summary:
                             vio_summary[key] = {'ten': ev[1], 'lop': ev[2], 'to': ev[3] or '', 'mo_ta': ev[4], 'count': 0}
                         vio_summary[key]['count'] += 1
                 vio_list = sorted(vio_summary.values(), key=lambda x: (x['ten'], x['mo_ta']))
 
-                # ==========================================
-                # TẠO VÀ XUẤT FILE EXCEL
-                # ==========================================
+                import tempfile, os, zipfile, io
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                     filepath = tmp.name
                     
-                # Gọi hàm xuất Excel và truyền đầy đủ 3 danh sách vừa lọc vào
                 success, msg = generate_weekly_summary_excel(
                     student_list, week_num, user['full_name'], user['class'] or "Toàn trường", user['group'] or "", 
                     start_date, end_date, filepath, pos_list, zero_list, vio_list 
@@ -1258,19 +1242,10 @@ def show_summary_page():
                 with col_btn2:
                     st.info("👆 File Excel đính kèm chứa 5 sheet chi tiết giống hệt bản Desktop (Xếp hạng, Vi phạm, Khen thưởng...).")
 
-                # ==========================================
-                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN / BÁO CÁO
-                # ==========================================
-                # ==========================================
-                # TÍNH NĂNG MỚI: TRỢ LÝ SOẠN TIN NHẮN & CỐ VẤN CHIẾN LƯỢC
-                # ==========================================
-                # 1. TRỢ LÝ DÀNH CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
+                # 1. TRỢ LÝ CHO GIÁO VIÊN CHỦ NHIỆM / ADMIN
                 if user['role'] in ['gvcn', 'admin']:
-                    
-                    # --- Trợ lý 1: Soạn tin nhắn Zalo ---
                     with st.expander("💬 Mở Trợ lý tạo tin nhắn Zalo gửi Phụ huynh"):
                         st.info("Hệ thống tự động quét dữ liệu và soạn sẵn tin nhắn. Thầy/Cô có thể copy dán vào nhóm Zalo lớp.")
-                        
                         top_students = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
                         if not top_students: top_students = [hs['ten'] for hs in student_list[:3]] 
                         vipham_dict = {}
@@ -1283,10 +1258,8 @@ def show_summary_page():
                         if vipham_text_list: msg_zalo += f"⚠️ Nhắc nhở các em còn vi phạm:\n- {';\n- '.join(vipham_text_list)}.\n\nKính mong quý phụ huynh nhắc nhở thêm các em.\n\n"
                         else: msg_zalo += f"✨ Tuyệt vời! Tuần này lớp chúng ta thực hiện nề nếp rất tốt, không có bạn nào vi phạm nội quy.\n\n"
                         msg_zalo += "📌 Chi tiết quý vị xem trong file Excel đính kèm. Trân trọng!"
-                        
                         st.text_area("Văn bản tin nhắn (Có thể chỉnh sửa):", value=msg_zalo, height=200, key="txt_zalo_gv")
 
-                    # --- Trợ lý 2: Cố vấn Chiến lược Sư phạm (TÍNH NĂNG MỚI) ---
                     with st.expander("🤖 AI Phân tích & Gợi ý Kế hoạch Tuần tới (Dành riêng cho GVCN)"):
                         st.info("Trợ lý AI sẽ đọc các số liệu rèn luyện trong tuần và đưa ra các đánh giá sư phạm, giúp Thầy/Cô lên kế hoạch quản lý lớp hiệu quả nhất.")
                         
@@ -1299,21 +1272,16 @@ def show_summary_page():
                                         from google import genai
                                         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                                         
-                                        # Chuẩn bị dữ liệu thô cho AI đọc
                                         so_hs = len(student_list)
                                         so_khen = sum(1 for ev in all_events if ev[5] == 'Khen thưởng')
                                         so_phat = sum(1 for ev in all_events if ev[5] == 'Vi phạm')
-                                        
                                         loi_list = list(set([ev[4] for ev in all_events if ev[5] == 'Vi phạm']))
                                         khen_list = list(set([ev[4] for ev in all_events if ev[5] == 'Khen thưởng']))
-                                        
                                         top_loi_str = ", ".join(loi_list) if loi_list else "Không có lỗi vi phạm"
                                         top_khen_str = ", ".join(khen_list) if khen_list else "Chưa có hoạt động nổi bật"
-                                        
                                         top_hs_tot = [hs['ten'] for hs in student_list[:5] if hs['diem'] > DIEM_KHOI_DAU]
                                         top_hs_kem = [hs['ten'] for hs in student_list[-5:] if hs['diem'] < DIEM_KHOI_DAU]
                                         
-                                        # Ra lệnh cho AI theo đúng sườn 4 phần
                                         prompt = f"""
                                         Đóng vai là một chuyên gia tâm lý học đường và cố vấn giáo dục. 
                                         Dưới đây là số liệu rèn luyện tuần {week_num} của lớp học có {so_hs} học sinh:
@@ -1331,67 +1299,48 @@ def show_summary_page():
                                         Yêu cầu: Văn phong chuyên nghiệp, sắc bén, thấu hiểu tâm lý tuổi học trò. Trình bày dạng Markdown dễ đọc.
                                         """
                                         
-                                        # Dùng model 1.5-flash để đảm bảo chạy mượt, không bị lỗi nghẽn mạng 503
-                                        response = client.models.generate_content(
-                                            model='gemini-3.6-flash',
-                                            contents=prompt
-                                        )
-                                        
+                                        # CƠ CHẾ DỰ PHÒNG CHỐNG KẸT MẠNG AI (ĐÃ FIX LỖI THỤT LỀ)
+                                        try:
+                                            response = client.models.generate_content(model='gemini-3.6-flash', contents=prompt)
+                                        except Exception as e_goi:
+                                            if "503" in str(e_goi) or "UNAVAILABLE" in str(e_goi) or "429" in str(e_goi) or "404" in str(e_goi):
+                                                st.toast("Đường truyền đang kẹt, tự động đổi kênh dự phòng...", icon="🔄")
+                                                response = client.models.generate_content(model='gemini-1.5-flash', contents=prompt)
+                                            else:
+                                                raise e_goi
+
                                         st.success("✅ Trợ lý AI đã phân tích xong!")
-                                        st.markdown(f"""
-                                        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; border-left: 5px solid #8e44ad; font-size: 1.05em; line-height: 1.6; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);'>
-                                            {response.text}
-                                        </div>
-                                        <br>
-                                        """, unsafe_allow_html=True)
+                                        st.markdown(f"<div style='background-color: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; border-left: 5px solid #8e44ad; font-size: 1.05em; line-height: 1.6; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);'>{response.text}</div><br>", unsafe_allow_html=True)
                                         
                                     except Exception as e:
                                         st.error(f"Lỗi khi gọi AI: {e}")
 
                 # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
-
-                # 2. TRỢ LÝ BÁO CÁO DÀNH CHO BAN CÁN SỰ (TỔ TRƯỞNG)
                 elif user['role'] == 'bcs':
                     with st.expander("💬 Mở Trợ lý soạn Báo cáo Tổ (Dùng để đọc trong giờ Sinh hoạt)"):
                         st.info("Hệ thống đã tự động tổng hợp số liệu. Em có thể cầm điện thoại, đọc nguyên văn bản báo cáo này trước lớp vào giờ sinh hoạt cuối tuần.")
-                        
                         top_students_bcs = [hs['ten'] for hs in student_list[:3] if hs['diem'] > DIEM_KHOI_DAU]
                         vipham_dict_bcs = {}
                         for ev in all_events:
                             if ev[5] == 'Vi phạm': vipham_dict_bcs.setdefault(ev[1], []).append(ev[4])
-
                         group_name = user['group'] or "..."
-                        class_name = user['class'] or "..."
                         
-                        msg_bcs = f"Kính thưa Thầy/Cô giáo chủ nhiệm cùng toàn thể các bạn trong lớp.\n"
-                        msg_bcs += f"Sau đây, em xin thay mặt Tổ {group_name} báo cáo tình hình thi đua của tổ trong Tuần {week_num} vừa qua như sau:\n\n"
-                        
-                        msg_bcs += "📌 1. ƯU ĐIỂM / ĐIỂM SÁNG:\n"
-                        if top_students_bcs: 
-                            msg_bcs += f"- Nhìn chung các bạn có ý thức tốt. Đặc biệt biểu dương các bạn rất tích cực, đạt điểm thi đua cao là: {', '.join(top_students_bcs)}.\n\n"
-                        else:
-                            msg_bcs += "- Đa số các bạn trong tổ có ý thức chấp hành nội quy, đi học và trực nhật đầy đủ.\n\n"
+                        msg_bcs = f"Kính thưa Thầy/Cô giáo chủ nhiệm cùng toàn thể các bạn trong lớp.\nSau đây, em xin thay mặt Tổ {group_name} báo cáo tình hình thi đua của tổ trong Tuần {week_num} vừa qua như sau:\n\n📌 1. ƯU ĐIỂM / ĐIỂM SÁNG:\n"
+                        if top_students_bcs: msg_bcs += f"- Nhìn chung các bạn có ý thức tốt. Đặc biệt biểu dương các bạn rất tích cực, đạt điểm thi đua cao là: {', '.join(top_students_bcs)}.\n\n"
+                        else: msg_bcs += "- Đa số các bạn trong tổ có ý thức chấp hành nội quy, đi học và trực nhật đầy đủ.\n\n"
                         
                         msg_bcs += "📌 2. HẠN CHẾ / TỒN TẠI:\n"
                         if vipham_dict_bcs: 
                             msg_bcs += "- Tuy nhiên, tổ vẫn còn một số tồn tại làm ảnh hưởng đến điểm thi đua chung. Cụ thể:\n"
-                            for ten, cac_loi in vipham_dict_bcs.items():
-                                loi_rut_gon = ", ".join(list(set(cac_loi)))
-                                msg_bcs += f"   + Bạn {ten} (Mắc lỗi: {loi_rut_gon}).\n"
+                            for ten, cac_loi in vipham_dict_bcs.items(): msg_bcs += f"   + Bạn {ten} (Mắc lỗi: {', '.join(list(set(cac_loi)))}).\n"
                             msg_bcs += "\n"
-                        else: 
-                            msg_bcs += "- Rất đáng khen là tuần này tổ chúng ta thực hiện xuất sắc, không có bạn nào vi phạm nội quy!\n\n"
+                        else: msg_bcs += "- Rất đáng khen là tuần này tổ chúng ta thực hiện xuất sắc, không có bạn nào vi phạm nội quy!\n\n"
                             
                         msg_bcs += "📌 3. ĐỀ XUẤT:\n"
-                        if top_students_bcs:
-                            msg_bcs += "- Kính đề nghị Thầy/Cô tuyên dương các bạn có thành tích tốt để làm gương.\n"
-                        if vipham_dict_bcs:
-                            msg_bcs += "- Yêu cầu các bạn còn vi phạm nghiêm túc rút kinh nghiệm và sửa đổi. Nếu tuần sau tái phạm, tổ sẽ đề nghị Thầy/Cô xử lý kỷ luật.\n"
-                        else:
-                            msg_bcs += "- Mong các bạn trong tổ tiếp tục phát huy tinh thần kỷ luật tốt như tuần này.\n"
-
+                        if top_students_bcs: msg_bcs += "- Kính đề nghị Thầy/Cô tuyên dương các bạn có thành tích tốt để làm gương.\n"
+                        if vipham_dict_bcs: msg_bcs += "- Yêu cầu các bạn còn vi phạm nghiêm túc rút kinh nghiệm và sửa đổi. Nếu tuần sau tái phạm, tổ sẽ đề nghị Thầy/Cô xử lý kỷ luật.\n"
+                        else: msg_bcs += "- Mong các bạn trong tổ tiếp tục phát huy tinh thần kỷ luật tốt như tuần này.\n"
                         msg_bcs += f"\nDạ, phần báo cáo của Tổ {group_name} đến đây là hết. Em xin cảm ơn Thầy/Cô và các bạn đã lắng nghe!"
-                        
                         st.text_area("Văn bản báo cáo (Có thể chỉnh sửa thêm nếu cần):", value=msg_bcs, height=350, key="txt_report_bcs")
 
     # ==========================================
@@ -1399,10 +1348,8 @@ def show_summary_page():
     # ==========================================
     with tab_thang:
         col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
-        with col_m1:
-            month = st.selectbox("Chọn tháng:", range(1, 13), index=datetime.now().month - 1)
-        with col_m2:
-            year = st.number_input("Chọn năm:", value=datetime.now().year)
+        with col_m1: month = st.selectbox("Chọn tháng:", range(1, 13), index=datetime.now().month - 1)
+        with col_m2: year = st.number_input("Chọn năm:", value=datetime.now().year)
         with col_m3:
             st.write("")
             st.write("")
@@ -1433,7 +1380,6 @@ def show_summary_page():
             df_thang = pd.DataFrame(student_list_m)
             if not df_thang.empty: df_thang.insert(0, 'STT', range(1, len(df_thang) + 1))
             
-            # --- HIỂN THỊ BẢNG XẾP HẠNG TỔ THÁNG ---
             st.markdown("#### 🏆 Xếp hạng Thi đua Tổ (Tháng)")
             if not df_thang.empty and 'to' in df_thang.columns:
                 df_team_m = df_thang[df_thang['to'] != ""].groupby('to')['diem'].mean().reset_index()
@@ -1444,10 +1390,7 @@ def show_summary_page():
                 for i, (_, row) in enumerate(df_team_m.iterrows()):
                     with cols_team_m[i]:
                         bg_color = "#e6f9ec" if i == 0 else "#f8f9fa"
-                        st.markdown(f"<div style='background-color:{bg_color}; padding:15px; border-radius:10px; text-align:center; border: 1px solid #ddd;'>"
-                                    f"<h4>Tổ {row['Tên Tổ']}</h4>"
-                                    f"<h2 style='color:#0078D7; margin:0;'>{row['Điểm Trung Bình']:.1f}</h2>"
-                                    f"</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background-color:{bg_color}; padding:15px; border-radius:10px; text-align:center; border: 1px solid #ddd;'><h4>Tổ {row['Tên Tổ']}</h4><h2 style='color:#0078D7; margin:0;'>{row['Điểm Trung Bình']:.1f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("#### 📋 Bảng Xếp loại Tháng của Lớp")
             st.dataframe(df_thang[['STT', 'ten', 'to', 'diem', 'xeploai']].rename(columns={'ten': 'Họ Tên', 'to': 'Tổ', 'diem': 'Điểm', 'xeploai': 'Xếp loại'}), width="stretch", hide_index=True)
@@ -1461,101 +1404,59 @@ def show_summary_page():
                 st.download_button("📥 TẢI FILE EXCEL BÁO CÁO THÁNG", data=excel_data_m, file_name=f"TongKet_Thang_{month}_{year}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", width="stretch")
             os.unlink(filepath_m)
 
-    
     # ==========================================
-    # ==========================================
-    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF (ĐÃ SỬA LỖI TRÙNG KEY)
+    # TAB 3: XUẤT PHIẾU LIÊN LẠC PDF 
     # ==========================================
     with tab_pdf:
         st.subheader("Tạo và Tải xuống Phiếu Liên Lạc (PDF)")
         
         col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            # Đổi key thành pdf_month_v3
-            pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month_v3")
-        with col_p2:
-            # Đổi key thành pdf_year_v3
-            pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year_v3")
+        with col_p1: pdf_month = st.selectbox("Chọn tháng xuất:", range(1, 13), index=datetime.now().month - 1, key="pdf_month_v3")
+        with col_p2: pdf_year = st.number_input("Chọn năm xuất:", value=datetime.now().year, key="pdf_year_v3")
             
         st.markdown("---")
-        # Đổi key thành export_scope_v3
         export_scope = st.radio("Phạm vi xuất:", ["Toàn bộ lớp", "Chọn học sinh cụ thể"], key="export_scope_v3")
         
-        # Lấy danh sách HS để chọn
         all_students = lay_thong_tin_day_du_hoc_sinh_db(user_role=user['role'], assigned_class=user['class'], assigned_group=user['group'])
         student_dict = {f"{hs[1]} (Tổ {hs[3] or '?'})": hs[0] for hs in all_students}
         
         selected_student_ids = []
         if export_scope == "Chọn học sinh cụ thể":
-            # Đổi key thành ms_export_hs_v3
             selected_names = st.multiselect("Chọn học sinh muốn xuất:", options=list(student_dict.keys()), key="ms_export_hs_v3")
             selected_student_ids = [student_dict[name] for name in selected_names]
         else:
             selected_student_ids = [hs[0] for hs in all_students]
             st.info(f"Sẽ xuất phiếu cho toàn bộ {len(selected_student_ids)} học sinh.")
             
-        # Đổi key thành btn_export_pdf_v3
         if st.button("🚀 Xử lý & Tạo Phiếu Liên Lạc", type="primary", width="stretch", key="btn_export_pdf_v3"):
-            if not selected_student_ids:
-                st.warning("Vui lòng chọn ít nhất một học sinh.")
+            if not selected_student_ids: st.warning("Vui lòng chọn ít nhất một học sinh.")
             else:
                 with st.spinner(f"Đang tự động tạo {len(selected_student_ids)} phiếu liên lạc PDF... Thầy chờ chút nhé!"):
-                    # Tạo thư mục tạm trên server để lưu PDF
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         pdf_files = []
                         success_count, fail_count = 0, 0
-                        
-                        # Duyệt qua từng HS để tạo PDF
                         for hs in all_students:
                             if hs[0] in selected_student_ids:
-                                # Làm sạch tên file để tránh lỗi tiếng Việt có dấu
                                 safe_name = "".join(x for x in hs[1] if x.isalnum() or x in " _-").replace(" ", "_")
                                 filename = f"PhieuLienLac_{safe_name}_T{pdf_month}-{pdf_year}.pdf"
                                 filepath = os.path.join(tmpdirname, filename)
-                                
-                                # Gọi hàm tạo PDF từ code cũ
                                 success, msg = generate_pdf_report(hs[0], pdf_year, pdf_month, user['full_name'], filepath)
                                 if success:
                                     pdf_files.append((filename, filepath))
                                     success_count += 1
-                                else:
-                                    fail_count += 1
+                                else: fail_count += 1
                                     
-                        # Xử lý sau khi tạo xong
                         if success_count > 0:
                             st.success(f"✅ Đã tạo thành công {success_count} phiếu PDF. Lỗi: {fail_count}.")
-                            
-                            # Nếu chỉ xuất 1 người, cho tải thẳng file PDF
                             if len(pdf_files) == 1:
-                                with open(pdf_files[0][1], "rb") as f:
-                                    pdf_data = f.read()
-                                st.download_button(
-                                    label=f"📥 Tải xuống Phiếu: {pdf_files[0][0]}",
-                                    data=pdf_data,
-                                    file_name=pdf_files[0][0],
-                                    mime="application/pdf",
-                                    type="primary",
-                                    width="stretch",
-                                    key="btn_download_single_v3"
-                                )
-                            # Nếu xuất nhiều người, Nén Zip lại cho tiện
+                                with open(pdf_files[0][1], "rb") as f: pdf_data = f.read()
+                                st.download_button(label=f"📥 Tải xuống Phiếu: {pdf_files[0][0]}", data=pdf_data, file_name=pdf_files[0][0], mime="application/pdf", type="primary", width="stretch", key="btn_download_single_v3")
                             else:
                                 zip_buffer = io.BytesIO()
                                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                                    for fname, fpath in pdf_files:
-                                        zip_file.write(fpath, arcname=fname)
-                                
-                                st.download_button(
-                                    label=f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc",
-                                    data=zip_buffer.getvalue(),
-                                    file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip",
-                                    mime="application/zip",
-                                    type="primary",
-                                    width="stretch",
-                                    key="btn_download_zip_v3"
-                                )
-                        else:
-                            st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
+                                    for fname, fpath in pdf_files: zip_file.write(fpath, arcname=fname)
+                                st.download_button(label=f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc", data=zip_buffer.getvalue(), file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip", mime="application/zip", type="primary", width="stretch", key="btn_download_zip_v3")
+                        else: st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
 # --- HÀM 7: QUẢN TRỊ HỆ THỐNG (ADMIN) ---
 def show_admin_page():
     st.header("⚙️ Quản trị Hệ thống")
