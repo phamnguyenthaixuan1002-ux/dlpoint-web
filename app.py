@@ -871,7 +871,7 @@ def show_discipline_page():
                             st.rerun()
         else:
             st.write("👈 Vui lòng chọn (các) học sinh và lỗi vi phạm ở cột bên trái để hệ thống phân tích.")
-# --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (TÍCH HỢP BÁO ĐỘNG & BẢN ĐỒ HÀNH VI) ---
+# --- HÀM 5: PHÂN TÍCH & CẢNH BÁO RÈN LUYỆN (FULL HOÀN CHỈNH) ---
 def show_statistics_page():
     st.header("📊 Phân tích & Cảnh báo Rèn luyện")
     st.markdown("---")
@@ -971,14 +971,13 @@ def show_statistics_page():
             st.error("Ngày bắt đầu không được lớn hơn ngày kết thúc!")
             return
             
-        with st.spinner('Đang dùng AI nội bộ phân tích dữ liệu...'):
+        with st.spinner('Đang tổng hợp và phân tích dữ liệu...'):
             df = lay_su_kien_cho_thong_ke_df(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
             
             if df.empty:
                 st.warning("Không có dữ liệu rèn luyện nào trong khoảng thời gian này.")
                 return
 
-            # Thêm thông tin Tên học sinh vào df để phân tích
             raw_events = lay_su_kien_trong_khoang_ngay_db(start_date.strftime('%Y-%m-%d'), (end_date + timedelta(days=1)).strftime('%Y-%m-%d'), role, aclass, agroup)
             df_full = pd.DataFrame(raw_events, columns=["ID", "Họ Tên", "Lớp", "Tổ", "Lỗi", "Loại", "Điểm", "Ngày"])
             
@@ -994,20 +993,16 @@ def show_statistics_page():
             
             with row1_col1:
                 st.write("🔥 **Top 5 Học sinh vi phạm nhiều nhất**")
-                # Đếm số lỗi theo học sinh
                 top_hs = df_vipham['Họ Tên'].value_counts().head(5)
-                # Vẽ biểu đồ ngang cho dễ đọc tên
                 st.bar_chart(top_hs, color="#e74c3c")
                 
             with row1_col2:
                 st.write("📅 **Chu kỳ vi phạm theo Thứ trong tuần**")
-                # Trích xuất "Thứ" từ Ngày
                 df_vipham['Ngày'] = pd.to_datetime(df_vipham['Ngày'])
                 df_vipham['Thứ_Index'] = df_vipham['Ngày'].dt.dayofweek
                 thu_map = {0: 'Thứ 2', 1: 'Thứ 3', 2: 'Thứ 4', 3: 'Thứ 5', 4: 'Thứ 6', 5: 'Thứ 7', 6: 'Chủ Nhật'}
                 df_vipham['Thứ'] = df_vipham['Thứ_Index'].map(thu_map)
                 
-                # Sắp xếp đúng thứ tự từ Thứ 2 đến Chủ Nhật
                 days_order = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật']
                 vp_theo_thu = df_vipham['Thứ'].value_counts().reindex(days_order).fillna(0)
                 st.bar_chart(vp_theo_thu, color="#f39c12")
@@ -1030,8 +1025,11 @@ def show_statistics_page():
 
             st.markdown("---")
             st.write("📝 **Chi tiết Dữ liệu Vi phạm (Bảng thô)**")
+            df_vipham['Ngày'] = df_vipham['Ngày'].dt.strftime('%d/%m/%Y %H:%M')
+            st.dataframe(df_vipham[['Ngày', 'Họ Tên', 'Lớp', 'Tổ', 'Lỗi', 'Điểm']], width="stretch", hide_index=True)
+
             # ==========================================
-            # MODULE 3: TRỢ LÝ AI PHÂN TÍCH LỚP HỌC
+            # MODULE 3: TRỢ LÝ AI PHÂN TÍCH LỚP HỌC (ĐÃ CHỐNG LỖI)
             # ==========================================
             st.markdown("---")
             st.subheader("🤖 Trợ lý AI Phân tích Chiến lược Lớp học")
@@ -1046,7 +1044,6 @@ def show_statistics_page():
                             from google import genai
                             client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-                            # Lọc số liệu chuẩn bị đưa cho AI đọc
                             so_vi_pham = len(df_vipham)
                             df_khen = df_full[df_full['Loại'] == 'Khen thưởng']
                             so_khen_thuong = len(df_khen)
@@ -1055,7 +1052,6 @@ def show_statistics_page():
                             top_hs_vp_str = ", ".join(df_vipham['Họ Tên'].value_counts().head(3).index.tolist()) if so_vi_pham > 0 else "Không có học sinh vi phạm"
                             top_hs_khen_str = ", ".join(df_khen['Họ Tên'].value_counts().head(3).index.tolist()) if so_khen_thuong > 0 else "Chưa có"
 
-                            # Ra lệnh cho AI (Prompt Engineering)
                             prompt = f"""
                             Bạn là một chuyên gia quản lý giáo dục và tư vấn tâm lý học đường cấp cao.
                             Dưới đây là số liệu thống kê rèn luyện của lớp học trong khoảng thời gian vừa qua:
@@ -1067,32 +1063,29 @@ def show_statistics_page():
                             Dựa vào các số liệu thực tế trên, hãy viết một báo cáo tư vấn ngắn gọn (khoảng 150-200 chữ) cho Giáo viên chủ nhiệm bao gồm 3 phần:
                             1. Đánh giá tổng quan về nề nếp của lớp.
                             2. Phân tích nguyên nhân sâu xa của các lỗi phổ biến (dựa trên tâm lý học sinh).
-                            3. Đề xuất 2-3 biện pháp cụ thể, thiết thực và mang tính giáo dục tích cực (Không dùng đòn roi/chửi mắng) để GVCN chấn chỉnh lớp trong tháng tới.
+                            3. Đề xuất 2-3 biện pháp cụ thể, thiết thực và mang tính giáo dục tích cực để GVCN chấn chỉnh lớp trong tháng tới.
                             
                             Văn phong: Chuyên nghiệp, tôn trọng, mang tính tư vấn, xưng là "Trợ lý AI DLPOINT".
                             """
 
-                            # Tích hợp cơ chế "Tự động đổi làn" khi Google bị kẹt xe (Lỗi 503)
-                                        try:
-                                            response = client.models.generate_content(
-                                                model='gemini-3.6-flash',
-                                                contents=prompt
-                                            )
-                                        except Exception as e_khi_goi:
-                                            if "503" in str(e_khi_goi) or "UNAVAILABLE" in str(e_khi_goi) or "429" in str(e_khi_goi):
-                                                # Báo hiệu nhỏ góc màn hình là đang đổi làn
-                                                st.toast("Đường truyền Flash đang kẹt, tự động đổi sang kênh Pro...", icon="🔄")
-                                                # Gọi lại bằng mô hình dự phòng ổn định hơn
-                                                response = client.models.generate_content(
-                                                    model='gemini-pro',
-                                                    contents=prompt
-                                                )
-                                            else:
-                                                raise e_khi_goi # Nếu là lỗi khác thì mới báo đỏ
+                            # CƠ CHẾ DỰ PHÒNG CHỐNG KẸT MẠNG AI KÉP
+                            try:
+                                response = client.models.generate_content(
+                                    model='gemini-3.6-flash',
+                                    contents=prompt
+                                )
+                            except Exception as e_goi:
+                                if "503" in str(e_goi) or "UNAVAILABLE" in str(e_goi) or "429" in str(e_goi) or "404" in str(e_goi):
+                                    st.toast("Đường truyền đang kẹt, tự động đổi kênh dự phòng...", icon="🔄")
+                                    response = client.models.generate_content(
+                                        model='gemini-1.5-pro',
+                                        contents=prompt
+                                    )
+                                else:
+                                    raise e_goi
 
                             st.success("✅ Trợ lý AI đã phân tích xong!")
                             
-                            # Hiển thị kết quả trong một khung xanh dương tuyệt đẹp
                             st.markdown(f"""
                             <div style='background-color: #f0f7ff; padding: 20px; border-radius: 10px; border-left: 5px solid #0078D7; font-size: 1.05em; line-height: 1.6; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);'>
                                 {response.text}
@@ -1102,8 +1095,6 @@ def show_statistics_page():
 
                         except Exception as e:
                             st.error(f"Lỗi khi gọi AI: {e}")
-            df_vipham['Ngày'] = df_vipham['Ngày'].dt.strftime('%d/%m/%Y %H:%M')
-            st.dataframe(df_vipham[['Ngày', 'Họ Tên', 'Lớp', 'Tổ', 'Lỗi', 'Điểm']], width="stretch", hide_index=True)
 # --- HÀM 6: TỔNG KẾT & XUẤT BÁO CÁO (FULL HOÀN CHỈNH - CHỐNG LỖI THỤT LỀ) ---
 def show_summary_page():
     st.header("📑 Báo cáo Tổng kết Toàn diện")
