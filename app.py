@@ -1448,30 +1448,26 @@ def show_summary_page():
                                     for fname, fpath in pdf_files: zip_file.write(fpath, arcname=fname)
                                 st.download_button(label=f"📦 Tải xuống File ZIP chứa {success_count} Phiếu Liên Lạc", data=zip_buffer.getvalue(), file_name=f"PhieuLienLac_T{pdf_month}_{pdf_year}.zip", mime="application/zip", type="primary", width="stretch", key="btn_download_zip_v3")
                         else: st.error("Không thể tạo phiếu liên lạc nào. Vui lòng kiểm tra lại dữ liệu và Font chữ.")
-# --- HÀM 7: QUẢN TRỊ HỆ THỐNG (ADMIN) ---
+# --- HÀM 7: QUẢN TRỊ HỆ THỐNG (ADMIN) - BẢN ĐÃ TÍCH HỢP CLEAR CACHE ---
 def show_admin_page():
     st.header("⚙️ Quản trị Hệ thống")
     st.markdown("---")
 
-    # Kiểm tra quyền: Chỉ Admin mới được xem trang này
     user = st.session_state.user_info
     if user['role'] != 'admin':
         st.error("🔒 Chức năng này bảo mật, chỉ dành cho tài khoản Admin.")
         return
 
-  # TẠO 4 TAB (Đã thêm Tab thứ 4)
     tab_users, tab_events, tab_settings, tab_class = st.tabs([
         "👥 Quản lý Người dùng", 
         "📋 Danh mục Sự kiện", 
         "🗓️ Cài đặt Năm học",
-        "🏫 Quản lý Lớp & HS (Excel)" # <<< TAB MỚI
+        "🏫 Quản lý Lớp & HS (Excel)"
     ])
-    # ==========================================
-    # TAB 1: QUẢN LÝ NGƯỜI DÙNG
-    # ==========================================
+
+    # === TAB 1: QUẢN LÝ NGƯỜI DÙNG ===
     with tab_users:
         col_list, col_form = st.columns([1.5, 1], gap="large")
-        
         with col_list:
             st.subheader("Danh sách Tài khoản")
             users = get_all_users_db()
@@ -1494,21 +1490,19 @@ def show_admin_page():
                     if username and fullname and role:
                         if them_hoac_cap_nhat_user_db(username, fullname, password, role, aclass or None, agroup or None):
                             st.success(f"Đã lưu tài khoản **{username}** thành công!")
-                            st.rerun() # Tải lại trang để cập nhật bảng
+                            st.rerun() 
                     else:
                         st.error("Vui lòng nhập đủ các trường bắt buộc (*).")
 
-    # ==========================================
-    # TAB 2: QUẢN LÝ DANH MỤC SỰ KIỆN (BẢN CHUẨN - CHỐNG LỖI TYPE ERROR)
-    # ==========================================
+    # === TAB 2: DANH MỤC SỰ KIỆN ===
     with tab_events:
         st.info("Quản lý danh mục các lỗi vi phạm và thành tích khen thưởng để áp dụng toàn trường.")
-
-        # --- 1. KHU VỰC NHẬP BẰNG EXCEL ---
+        
         with st.expander("📥 Bấm vào đây để TẠO/CẬP NHẬT HÀNG LOẠT bằng file Excel", expanded=False):
             col_ex1, col_ex2 = st.columns([1, 1])
             with col_ex1:
                 st.write("1. Tải file mẫu về máy và điền danh sách sự kiện.")
+                import io
                 df_mau_sk = pd.DataFrame({"Tên sự kiện": ["Đi học trễ", "Không đồng phục", "Nhặt được của rơi"], "Loại": ["Vi phạm", "Vi phạm", "Khen thưởng"], "Điểm": [-2, -5, 10], "Mức độ vi phạm": [1, 2, None]})
                 output_sk = io.BytesIO()
                 with pd.ExcelWriter(output_sk, engine='openpyxl') as writer: df_mau_sk.to_excel(writer, index=False)
@@ -1544,193 +1538,148 @@ def show_admin_page():
                                         else: fail_sk += 1
                                 if success_sk > 0:
                                     st.success(f"✅ Nhập hoàn tất: Thành công {success_sk} sự kiện. Bỏ qua dòng trống/lỗi: {fail_sk}.")
+                                    st.cache_data.clear() # <<< XÓA CACHE CHỐNG LỖI HIỂN THỊ >>>
                                     st.rerun() 
                                 else: st.error("❌ Bị lỗi. Vui lòng kiểm tra lại file Excel.")
                         except Exception as e: st.error(f"Lỗi đọc file: {e}")
 
         st.markdown("---")
-
-        # --- 2. KHU VỰC DANH SÁCH & FORM CHỌN ĐỂ SỬA ---
         col_elist, col_eform = st.columns([1.5, 1], gap="large")
-        
         events = lay_tat_ca_danh_muc_su_kien_db()
         df_events = pd.DataFrame(events, columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ"]) if events else pd.DataFrame(columns=["ID", "Tên Sự kiện", "Loại", "Điểm", "Mức độ"])
         
         with col_elist:
             st.subheader("📋 Danh sách Sự kiện")
-            st.write("👇 **Tick ô [x] và bấm nút dưới cùng để XÓA:**")
-            
+            st.write("👇 **Bấm vào 1 dòng để SỬA, hoặc tick ô [x] để XÓA:**")
             if not df_events.empty:
                 df_events.insert(0, "Chọn xóa", False)
-                
-                # Bảng thuần túy dùng để hiển thị và tick XÓA (Đã gỡ bỏ tính năng Click gây lỗi)
                 edited_ev_df = st.data_editor(
-                    df_events,
-                    hide_index=True,
+                    df_events, hide_index=True,
                     column_config={"Chọn xóa": st.column_config.CheckboxColumn(required=True), "ID": None},
                     disabled=["Tên Sự kiện", "Loại", "Điểm", "Mức độ"], 
-                    use_container_width=True,
-                    height=450,
-                    key="editor_events_v6"
+                    use_container_width=True, height=450,
+                    selection_mode="single-row", on_select="rerun", key="editor_events_v6"
                 )
-                
                 selected_ev_rows = edited_ev_df[edited_ev_df["Chọn xóa"] == True]
                 ids_to_del_ev = selected_ev_rows["ID"].tolist()
-                
                 if len(ids_to_del_ev) > 0:
                     st.warning(f"Bạn đang chọn xóa {len(ids_to_del_ev)} sự kiện.")
                     if st.button("🗑️ Xác nhận Xóa", type="primary", key="btn_del_events_v6"):
                         del_ev_count = xoa_nhieu_danh_muc_su_kien_db(ids_to_del_ev)
                         st.success(f"Đã xóa thành công {del_ev_count} sự kiện.")
+                        st.cache_data.clear() # <<< XÓA CACHE >>>
                         st.rerun()
-            else:
-                st.info("Chưa có danh mục sự kiện nào.")
+            else: st.info("Chưa có danh mục sự kiện nào.")
 
         with col_eform:
             st.subheader("📝 Thêm / Sửa Sự kiện")
-            
-            # --- TÍNH NĂNG MỚI: CHỌN CHẾ ĐỘ THÊM HOẶC SỬA ---
             edit_mode = st.radio("Chế độ:", ["➕ Thêm Mới", "✏️ Sửa Sự kiện đã có"], horizontal=True)
-            
             selected_id = None
             def_name, def_type, def_points, def_level = "", "Vi phạm", 0, "Không xét KL"
             
             if edit_mode == "✏️ Sửa Sự kiện đã có":
-                if not events:
-                    st.warning("Chưa có sự kiện nào để sửa.")
+                if not events: st.warning("Chưa có sự kiện nào để sửa.")
                 else:
-                    # Tạo danh sách tên sự kiện để thầy chọn
                     event_names = [ev[1] for ev in events]
                     selected_ev_name = st.selectbox("👇 Chọn sự kiện cần sửa:", event_names)
-                    
-                    # Lấy dữ liệu của sự kiện được chọn để điền vào Form
                     for ev in events:
                         if ev[1] == selected_ev_name:
-                            selected_id = ev[0]
-                            def_name = ev[1]
-                            def_type = ev[2]
-                            def_points = ev[3]
+                            selected_id, def_name, def_type, def_points = ev[0], ev[1], ev[2], ev[3]
                             md = ev[4]
-                            if pd.notna(md) and str(md).strip() != "None" and str(md).strip() != "":
-                                def_level = str(int(md))
+                            if pd.notna(md) and str(md).strip() != "None" and str(md).strip() != "": def_level = str(int(md))
                             break
+                    st.success(f"✏️ Đang sửa: **{def_name}**")
+            else: st.info("✨ Nhập thông tin bên dưới để Thêm mới.")
 
-            # --- Form nhập liệu tự động ---
             with st.form("form_event_v6"):
-                # Ô tên sự kiện
-                if edit_mode == "➕ Thêm Mới":
-                    e_name = st.text_input("Tên sự kiện mới *")
-                else:
-                    e_name = st.text_input("Tên sự kiện *", value=def_name) # Cho phép sửa tên
-                
+                e_name = st.text_input("Tên sự kiện *", value=def_name) if edit_mode == "✏️ Sửa Sự kiện đã có" else st.text_input("Tên sự kiện mới *")
                 type_idx = 0 if def_type == "Vi phạm" else 1
                 e_type = st.selectbox("Loại", ["Vi phạm", "Khen thưởng"], index=type_idx)
-                
                 e_points = st.number_input("Điểm (+ hoặc -)", value=def_points)
-                
                 lvl_options = ["Không xét KL", "1", "2", "3"]
                 lvl_idx = lvl_options.index(def_level) if def_level in lvl_options else 0
                 e_level = st.selectbox("Mức độ vi phạm (Theo TT19)", lvl_options, index=lvl_idx)
 
                 btn_label = "💾 Cập nhật Sự kiện" if selected_id else "➕ Lưu Sự kiện Mới"
-                
                 if st.form_submit_button(btn_label, type="primary", use_container_width=True):
                     if e_name:
                         muc_do = int(e_level) if e_level != "Không xét KL" and e_type == "Vi phạm" else None
-                        
                         if selected_id:
-                            # CẬP NHẬT
                             if sua_danh_muc_su_kien_db(selected_id, e_name, e_type, e_points, muc_do):
-                                st.toast(f"Đã cập nhật thành công!", icon="✅")
+                                st.toast("Đã cập nhật thành công!", icon="✅")
+                                st.session_state['editor_events_v6']["selection"]["rows"] = []
+                                st.cache_data.clear() # <<< XÓA CACHE >>>
                                 st.rerun()
                         else:
-                            # THÊM MỚI
                             if them_hoac_cap_nhat_danh_muc_db(e_name, e_type, e_points, muc_do):
-                                st.toast(f"Đã thêm mới sự kiện!", icon="✅")
+                                st.toast("Đã thêm mới sự kiện!", icon="✅")
+                                st.cache_data.clear() # <<< XÓA CACHE >>>
                                 st.rerun()
-                    else:
-                        st.error("Vui lòng nhập tên sự kiện.")
-    # TAB 3: CÀI ĐẶT NĂM HỌC & KỲ NGHỈ LỄ
-    # ==========================================
+                    else: st.error("Vui lòng nhập tên sự kiện.")
+
+            if selected_id:
+                if st.button("✖️ Hủy sửa (Quay lại Thêm mới)", use_container_width=True):
+                    st.session_state['editor_events_v6']["selection"]["rows"] = []
+                    st.rerun()
+
+    # === TAB 3: CÀI ĐẶT NĂM HỌC ===
     with tab_settings:
         st.subheader("1. Cài đặt Ngày bắt đầu Năm học")
         st.write("Ngày này được dùng làm mốc (Tuần 1) để tính số thứ tự Tuần học trong các Báo cáo.")
-        
         current_start = load_setting("school_year_start_date", "2025-09-08")
         start_date = st.date_input("Ngày bắt đầu năm học:", datetime.strptime(current_start, "%Y-%m-%d").date())
-        
         if st.button("💾 Lưu Ngày bắt đầu", type="primary", width="stretch", key="btn_save_start"):
             save_setting("school_year_start_date", start_date.strftime("%Y-%m-%d"))
+            st.cache_data.clear() # <<< XÓA CACHE >>>
             st.toast("Đã lưu ngày bắt đầu năm học thành công!", icon="✅")
 
         st.markdown("---")
         st.subheader("2. Quản lý Kỳ nghỉ (Lễ, Tết)")
         st.write("Các khoảng thời gian này sẽ KHÔNG được tính vào số tuần học thực tế.")
-        st.info("💡 **Hướng dẫn:** Bấm vào lịch trong bảng để chọn ngày. Bấm dấu **[+]** ở góc dưới bảng để thêm kỳ nghỉ mới. Đánh dấu ô vuông bên trái dòng và bấm phím **Delete** (hoặc biểu tượng thùng rác) để xóa.")
+        st.info("💡 **Hướng dẫn:** Bấm dấu **[+]** ở góc dưới bảng để thêm kỳ nghỉ. Đánh dấu ô vuông bên trái dòng và bấm phím **Delete** để xóa.")
         
-        # Đọc dữ liệu kỳ nghỉ từ CSDL
         import json
         holidays_json = load_setting(HOLIDAY_SETTINGS_KEY, '[]')
         try:
             holidays_list = json.loads(holidays_json)
-            # Chuyển chuỗi thành định dạng ngày tháng để hiển thị lịch trên Web
             for i in range(len(holidays_list)):
                 holidays_list[i][0] = datetime.strptime(holidays_list[i][0], "%Y-%m-%d").date()
                 holidays_list[i][1] = datetime.strptime(holidays_list[i][1], "%Y-%m-%d").date()
             df_holidays = pd.DataFrame(holidays_list, columns=["Từ ngày", "Đến ngày"])
-        except:
-            df_holidays = pd.DataFrame(columns=["Từ ngày", "Đến ngày"])
+        except: df_holidays = pd.DataFrame(columns=["Từ ngày", "Đến ngày"])
 
-        # Bảng dữ liệu tương tác (Cho phép Thêm/Sửa/Xóa trực tiếp)
         edited_holidays = st.data_editor(
             df_holidays,
-            column_config={
-                "Từ ngày": st.column_config.DateColumn("Từ ngày", required=True, format="DD/MM/YYYY"),
-                "Đến ngày": st.column_config.DateColumn("Đến ngày", required=True, format="DD/MM/YYYY")
-            },
-            num_rows="dynamic", # Cho phép thêm/xóa dòng
-            use_container_width=True,
-            key="holiday_editor"
+            column_config={"Từ ngày": st.column_config.DateColumn("Từ ngày", required=True, format="DD/MM/YYYY"), "Đến ngày": st.column_config.DateColumn("Đến ngày", required=True, format="DD/MM/YYYY")},
+            num_rows="dynamic", use_container_width=True, key="holiday_editor"
         )
         
         if st.button("💾 Lưu Danh sách Kỳ nghỉ", type="primary", width="stretch", key="btn_save_holidays"):
-            valid_holidays = []
-            has_error = False
-            
-            # Kiểm tra và định dạng lại dữ liệu trước khi lưu
+            valid_holidays, has_error = [], False
             for index, row in edited_holidays.iterrows():
-                start_d = row["Từ ngày"]
-                end_d = row["Đến ngày"]
-                
+                start_d, end_d = row["Từ ngày"], row["Đến ngày"]
                 if pd.notna(start_d) and pd.notna(end_d):
                     if start_d > end_d:
-                        st.error(f"Lỗi ở dòng {index + 1}: Ngày bắt đầu ({start_d.strftime('%d/%m/%Y')}) không thể lớn hơn ngày kết thúc ({end_d.strftime('%d/%m/%Y')}).")
-                        has_error = True
-                        break
-                    # Lưu lại định dạng chuỗi YYYY-MM-DD vào CSDL
+                        st.error(f"Lỗi dòng {index + 1}: Ngày bắt đầu không thể lớn hơn ngày kết thúc.")
+                        has_error = True; break
                     valid_holidays.append([start_d.strftime('%Y-%m-%d'), end_d.strftime('%Y-%m-%d')])
             
             if not has_error:
                 save_setting(HOLIDAY_SETTINGS_KEY, json.dumps(valid_holidays))
-                st.success("✅ Đã lưu danh sách kỳ nghỉ thành công! Hệ thống sẽ tự động tính lại số Tuần trên toàn ứng dụng.")
-    # ==========================================
-    # TAB 4: QUẢN LÝ LỚP & HỌC SINH (NHẬP/XÓA/CẬP NHẬT ẢNH HÀNG LOẠT)
-    # ==========================================
+                st.cache_data.clear() # <<< XÓA CACHE >>>
+                st.success("✅ Đã lưu danh sách kỳ nghỉ thành công! Hệ thống sẽ tự động tính lại số Tuần.")
+
+    # === TAB 4: QUẢN LÝ LỚP & HỌC SINH (EXCEL) ===
     with tab_class:
         st.info("Khu vực này giúp thầy khởi tạo lớp mới nhanh chóng, dọn dẹp dữ liệu, hoặc gắn ảnh thẻ cho cả lớp chỉ bằng 1 file Excel.")
-        
-        # Chia làm 3 cột
         col_import, col_photo, col_delete = st.columns([1, 1, 1], gap="medium")
 
-        # ---------------------------------------
-        # CỘT 1: TẠO LỚP (GIỮ NGUYÊN NHƯ CŨ)
-        # ---------------------------------------
         with col_import:
             st.subheader("📥 1. Tạo Lớp Mới")
+            import io
             df_template = pd.DataFrame(columns=["Họ tên học sinh", "Lớp", "Tổ", "Ngày tháng năm sinh", "Địa chỉ", "SĐT Học sinh", "SĐT Zalo", "Ghi chú"])
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer: df_template.to_excel(writer, index=False)
-            
             st.download_button("⬇️ Tải File Mẫu (Tạo lớp)", data=output.getvalue(), file_name="Mau_Tao_Lop.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
             uploaded_file = st.file_uploader("Tải lên danh sách học sinh mới:", type=['xlsx', 'xls'])
@@ -1747,20 +1696,15 @@ def show_admin_page():
                                 if them_hoc_sinh_db(data_db): success_count += 1
                                 else: fail_count += 1
                         st.success(f"Đã nhập thành công {success_count} học sinh. Lỗi: {fail_count} dòng.")
+                        st.cache_data.clear() # <<< XÓA CACHE >>>
                     except Exception as e: st.error(f"Lỗi: {e}")
 
-        # ---------------------------------------
-        # CỘT 2: CẬP NHẬT ẢNH THẺ HÀNG LOẠT (TÍNH NĂNG MỚI)
-        # ---------------------------------------
         with col_photo:
             st.subheader("🖼️ 2. Gắn Ảnh Thẻ")
             st.write("Cập nhật tên file ảnh cho các học sinh ĐÃ CÓ trong hệ thống.")
-            
-            # Tạo file mẫu cập nhật ảnh
             df_photo_template = pd.DataFrame(columns=["Họ và Tên", "Lớp", "Tên file ảnh"])
             out_photo = io.BytesIO()
             with pd.ExcelWriter(out_photo, engine='openpyxl') as writer: df_photo_template.to_excel(writer, index=False)
-            
             st.download_button("⬇️ Tải File Mẫu (Gắn ảnh)", data=out_photo.getvalue(), file_name="Mau_Cap_Nhat_Anh.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
             uploaded_photo_file = st.file_uploader("Tải lên danh sách gắn ảnh:", type=['xlsx', 'xls'], key="up_photo")
@@ -1771,34 +1715,24 @@ def show_admin_page():
                         if "Họ và Tên" not in df_p.columns or "Lớp" not in df_p.columns or "Tên file ảnh" not in df_p.columns:
                             st.error("File không hợp lệ. Phải có 3 cột: Họ và Tên, Lớp, Tên file ảnh.")
                         else:
-                            # Lấy danh sách toàn bộ học sinh để dò tìm ID
                             all_hs = lay_danh_sach_hoc_sinh_db('admin', None, None)
-                            # Tạo bộ từ điển: Key là (Tên, Lớp) -> Value là ID
                             hs_dict = {(str(hs[1]).strip().lower(), str(hs[2]).strip().lower()): hs[0] for hs in all_hs}
-                            
                             s_count, f_count = 0, 0
                             with st.spinner("Đang dò tìm học sinh và gắn ảnh..."):
                                 for _, row in df_p.iterrows():
                                     ten = str(row.get("Họ và Tên", "")).strip().lower()
                                     lop = str(row.get("Lớp", "")).strip().lower()
                                     ten_file_anh = str(row.get("Tên file ảnh", "")).strip()
-                                    
                                     if not ten or not lop or not ten_file_anh or ten_file_anh == "nan": continue
-                                    
-                                    # Dò tìm ID học sinh dựa vào Tên và Lớp
                                     hs_id = hs_dict.get((ten, lop))
                                     if hs_id:
-                                        # Gọi hàm CSDL cập nhật ảnh
                                         if cap_nhat_anh_the_db(hs_id, ten_file_anh): s_count += 1
                                         else: f_count += 1
-                                    else: f_count += 1 # Không tìm thấy học sinh này
-                                        
-                            st.success(f"✅ Đã gắn ảnh thành công cho {s_count} học sinh. Bỏ qua: {f_count} học sinh (Do sai tên/lớp hoặc trống).")
+                                    else: f_count += 1 
+                            st.success(f"✅ Đã gắn ảnh thành công cho {s_count} học sinh. Bỏ qua: {f_count} học sinh.")
+                            st.cache_data.clear() # <<< XÓA CACHE >>>
                     except Exception as e: st.error(f"Lỗi: {e}")
 
-        # ---------------------------------------
-        # CỘT 3: DỌN DẸP / XÓA (GIỮ NGUYÊN NHƯ CŨ)
-        # ---------------------------------------
         with col_delete:
             st.subheader("🗑️ 3. Dọn dẹp (Xóa)")
             classes, _ = get_distinct_classes_and_groups_db()
@@ -1813,7 +1747,9 @@ def show_admin_page():
                             ids_to_delete = [hs[0] for hs in hs_lop_do]
                             if ids_to_delete:
                                 xoa_nhieu_hoc_sinh_db(ids_to_delete)
-                                st.success("Đã xóa thành công."); st.rerun()
+                                st.success("Đã xóa thành công.")
+                                st.cache_data.clear() # <<< XÓA CACHE >>>
+                                st.rerun()
 
                 elif delete_mode == "Xóa từng học sinh":
                     class_to_filter = st.selectbox("Lọc theo lớp:", ["Tất cả"] + classes)
@@ -1827,8 +1763,9 @@ def show_admin_page():
                         if len(ids_to_delete) > 0:
                             if st.button("🗑️ Xác nhận xóa", type="primary"):
                                 xoa_nhieu_hoc_sinh_db(ids_to_delete)
-                                st.success("Đã xóa."); st.rerun()
-# --- HÀM 2: GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP) ---
+                                st.success("Đã xóa.")
+                                st.cache_data.clear() # <<< XÓA CACHE >>>
+                                st.rerun()
 # --- HÀM 9: ĐIỂM DANH HÀNG NGÀY ---
 def show_attendance_page():
     st.header("📅 Điểm danh Hàng ngày")
